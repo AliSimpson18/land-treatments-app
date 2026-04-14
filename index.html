@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Land Treatment History — SJRWMD</title>
+  <link rel="stylesheet" href="https://js.arcgis.com/4.30/esri/themes/light/main.css">
+  <script src="https://js.arcgis.com/4.30/"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      display: flex;
+      height: 100vh;
+      font-family: "Avenir Next", Avenir, Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      color: #333;
+    }
+
+    /* ── Left Panel ─────────────────────────────── */
+    #left-panel {
+      width: 35%;
+      min-width: 340px;
+      max-width: 500px;
+      display: flex;
+      flex-direction: column;
+      background: #f5f5f5;
+      border-right: 1px solid #d0d0d0;
+      overflow: hidden;
+      position: relative;
+      z-index: 5;
+      flex-shrink: 0;
+    }
+
+    #app-header {
+      background: #1a4f72;
+      color: white;
+      padding: 13px 16px 11px;
+      flex-shrink: 0;
+    }
+    #app-header h1 { font-size: 14px; font-weight: 600; letter-spacing: 0.2px; }
+    #app-header p  { font-size: 11px; opacity: 0.72; margin-top: 2px; }
+
+    /* ── Search ─────────────────────────────────── */
+    #search-section {
+      background: white;
+      padding: 10px 14px;
+      border-bottom: 1px solid #e0e0e0;
+      flex-shrink: 0;
+    }
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 6px;
+    }
+    .search-row { display: flex; gap: 6px; }
+    .search-input-wrap { flex: 1; position: relative; }
+    #search-input {
+      width: 100%;
+      padding: 7px 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 13px;
+      font-family: inherit;
+    }
+    #search-input:focus { outline: none; border-color: #1a4f72; box-shadow: 0 0 0 2px rgba(26,79,114,0.15); }
+    #search-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0; right: 0;
+      background: white;
+      border: 1px solid #ccc;
+      border-top: none;
+      border-radius: 0 0 4px 4px;
+      max-height: 180px;
+      overflow-y: auto;
+      z-index: 100;
+      display: none;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .search-option { padding: 8px 10px; cursor: pointer; font-size: 13px; }
+    .search-option:hover { background: #f0f5ff; }
+    #search-btn {
+      padding: 7px 13px;
+      background: #1a4f72;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-family: inherit;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    #search-btn:hover { background: #154060; }
+    #clear-search-btn {
+      padding: 5px 9px;
+      background: none;
+      color: #999;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 17px;
+      line-height: 1;
+      display: none;
+      flex-shrink: 0;
+    }
+    #clear-search-btn:hover { color: #555; }
+
+    /* ── Filters ─────────────────────────────────── */
+    #filters-section {
+      background: white;
+      padding: 10px 14px;
+      border-bottom: 1px solid #e0e0e0;
+      flex-shrink: 0;
+    }
+    .filters-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    #category-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+    .cat-pill {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 11px;
+      border-radius: 20px;
+      border: 1.5px solid;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.15s ease;
+      user-select: none;
+      opacity: 0.45;
+    }
+    .cat-pill.active { opacity: 1; }
+    .pill-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+    .cat-pill[data-cat="Forestry"]   { border-color: #639922; color: #639922; }
+    .cat-pill[data-cat="Forestry"].active   { background: #639922; color: white; }
+    .cat-pill[data-cat="Forestry"]   .pill-dot { background: #639922; }
+    .cat-pill[data-cat="Forestry"].active   .pill-dot { background: white; }
+
+    .cat-pill[data-cat="Fire"]       { border-color: #E24B4A; color: #E24B4A; }
+    .cat-pill[data-cat="Fire"].active       { background: #E24B4A; color: white; }
+    .cat-pill[data-cat="Fire"]       .pill-dot { background: #E24B4A; }
+    .cat-pill[data-cat="Fire"].active       .pill-dot { background: white; }
+
+    .cat-pill[data-cat="Mechanical"] { border-color: #378ADD; color: #378ADD; }
+    .cat-pill[data-cat="Mechanical"].active { background: #378ADD; color: white; }
+    .cat-pill[data-cat="Mechanical"] .pill-dot { background: #378ADD; }
+    .cat-pill[data-cat="Mechanical"].active .pill-dot { background: white; }
+
+    .cat-pill[data-cat="Chemical"]   { border-color: #7F77DD; color: #7F77DD; }
+    .cat-pill[data-cat="Chemical"].active   { background: #7F77DD; color: white; }
+    .cat-pill[data-cat="Chemical"]   .pill-dot { background: #7F77DD; }
+    .cat-pill[data-cat="Chemical"].active   .pill-dot { background: white; }
+
+    .dropdowns-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .filter-select {
+      width: 100%;
+      padding: 5px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: inherit;
+      background: white;
+      color: #333;
+    }
+    .filter-select:focus { outline: none; border-color: #1a4f72; }
+    .filter-select.full-col { grid-column: 1 / -1; }
+    #clear-filters-btn {
+      font-size: 11px;
+      color: #1a4f72;
+      background: none;
+      border: none;
+      cursor: pointer;
+      text-decoration: underline;
+      padding: 0;
+    }
+
+    /* ── Results Pane ────────────────────────────── */
+    #results-pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #results-bar {
+      background: #eeeeee;
+      padding: 7px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #d8d8d8;
+      flex-shrink: 0;
+      gap: 8px;
+    }
+    #results-count { font-size: 12px; color: #555; font-weight: 600; }
+    #click-badge {
+      font-size: 11px;
+      background: #1a4f72;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 10px;
+      display: none;
+      white-space: nowrap;
+    }
+    #clear-click-btn {
+      font-size: 11px;
+      color: #1a4f72;
+      background: none;
+      border: none;
+      cursor: pointer;
+      text-decoration: underline;
+      display: none;
+      margin-left: auto;
+      white-space: nowrap;
+    }
+    #results-list { flex: 1; overflow-y: auto; }
+
+    .result-item {
+      padding: 10px 14px 10px 18px;
+      border-bottom: 1px solid #ebebeb;
+      cursor: pointer;
+      background: white;
+      position: relative;
+      transition: background 0.1s;
+    }
+    .result-item:hover   { background: #f5f8ff; }
+    .result-item.selected { background: #e8f0fa; }
+    .result-item::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 4px;
+    }
+    .result-item[data-cat="Forestry"]::before   { background: #639922; }
+    .result-item[data-cat="Fire"]::before       { background: #E24B4A; }
+    .result-item[data-cat="Mechanical"]::before { background: #378ADD; }
+    .result-item[data-cat="Chemical"]::before   { background: #7F77DD; }
+
+    .res-title { font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 2px; }
+    .res-line2 { font-size: 12px; color: #555; margin-bottom: 1px; }
+    .res-line3 { font-size: 11px; color: #888; }
+
+    .empty-msg {
+      padding: 28px 16px;
+      text-align: center;
+      color: #aaa;
+      font-size: 13px;
+    }
+
+    /* ── Detail Pane ─────────────────────────────── */
+    #detail-pane {
+      position: absolute;
+      inset: 0;
+      background: white;
+      display: flex;
+      flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.25s ease;
+      z-index: 20;
+      overflow: hidden;
+    }
+    #detail-pane.open { transform: translateX(0); }
+
+    #detail-header {
+      background: #1a4f72;
+      color: white;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    #back-btn {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.45);
+      color: white;
+      border-radius: 4px;
+      padding: 4px 10px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: inherit;
+      flex-shrink: 0;
+    }
+    #back-btn:hover { background: rgba(255,255,255,0.15); }
+    #detail-title { font-size: 13px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #detail-cat-badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.22);
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    #detail-body { flex: 1; overflow-y: auto; padding: 14px; }
+
+    .detail-section { margin-bottom: 14px; }
+    .detail-section-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 4px;
+      margin-bottom: 8px;
+    }
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 4px 0;
+      border-bottom: 1px solid #f5f5f5;
+      font-size: 13px;
+    }
+    .detail-label { color: #777; font-weight: 500; min-width: 120px; flex-shrink: 0; }
+    .detail-value { color: #1a1a1a; text-align: right; word-break: break-word; }
+    .detail-comments {
+      font-size: 13px;
+      color: #333;
+      line-height: 1.55;
+      background: #fafafa;
+      border: 1px solid #eee;
+      border-radius: 4px;
+      padding: 8px 10px;
+    }
+
+    /* ── Map Panel ───────────────────────────────── */
+    #map-panel { flex: 1; position: relative; overflow: hidden; }
+    #viewDiv   { width: 100%; height: 100%; }
+
+    #map-tip {
+      position: absolute;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.6);
+      color: white;
+      padding: 7px 15px;
+      border-radius: 20px;
+      font-size: 12px;
+      pointer-events: none;
+      white-space: nowrap;
+      z-index: 5;
+      transition: opacity 0.6s;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ Left Panel ══════════════════════════════════════════ -->
+<div id="left-panel">
+
+  <div id="app-header">
+    <h1>Land Treatment History</h1>
+    <p>SJRWMD &middot; ~2,037 records across ~700,000 acres</p>
+  </div>
+
+  <!-- Search -->
+  <div id="search-section">
+    <div class="section-label">Search by Conservation Area</div>
+    <div class="search-row">
+      <div class="search-input-wrap">
+        <input id="search-input" type="text" placeholder="Type a conservation area name…" autocomplete="off">
+        <div id="search-dropdown"></div>
+      </div>
+      <button id="search-btn">Search</button>
+      <button id="clear-search-btn" title="Clear search">&times;</button>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div id="filters-section">
+    <div class="filters-header">
+      <div class="section-label" style="margin-bottom:0">Filters</div>
+      <button id="clear-filters-btn">Clear all</button>
+    </div>
+    <div id="category-pills">
+      <div class="cat-pill active" data-cat="Forestry"><span class="pill-dot"></span>Forestry</div>
+      <div class="cat-pill active" data-cat="Fire"><span class="pill-dot"></span>Fire</div>
+      <div class="cat-pill active" data-cat="Mechanical"><span class="pill-dot"></span>Mechanical</div>
+      <div class="cat-pill active" data-cat="Chemical"><span class="pill-dot"></span>Chemical</div>
+    </div>
+    <div class="dropdowns-grid">
+      <select id="type-select"  class="filter-select"><option value="">All Types</option></select>
+      <select id="year-select"  class="filter-select"><option value="">All Years</option></select>
+      <select id="area-select"  class="filter-select full-col"><option value="">All Management Areas</option></select>
+    </div>
+  </div>
+
+  <!-- Results pane (contains results list + overlaid detail pane) -->
+  <div id="results-pane">
+    <div id="results-bar">
+      <span id="results-count">Loading…</span>
+      <span id="click-badge">Map Click</span>
+      <button id="clear-click-btn">Show all in view</button>
+    </div>
+    <div id="results-list"></div>
+
+    <!-- Detail panel slides over results list -->
+    <div id="detail-pane">
+      <div id="detail-header">
+        <button id="back-btn">&#8592; Back</button>
+        <span id="detail-title"></span>
+        <span id="detail-cat-badge"></span>
+      </div>
+      <div id="detail-body"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ Map Panel ═══════════════════════════════════════════ -->
+<div id="map-panel">
+  <div id="viewDiv"></div>
+  <div id="map-tip">Click anywhere on the map to find all overlapping treatments</div>
+</div>
+
+<script>
+require([
+  "esri/config",
+  "esri/identity/IdentityManager",
+  "esri/identity/OAuthInfo",
+  "esri/Map",
+  "esri/views/MapView",
+  "esri/layers/FeatureLayer",
+  "esri/core/reactiveUtils"
+], function(esriConfig, esriId, OAuthInfo, Map, MapView, FeatureLayer, reactiveUtils) {
+
+  const PORTAL = "https://floridaswater.maps.arcgis.com";
+  esriConfig.portalUrl = PORTAL;
+
+  // ── OAuth ─────────────────────────────────────────────────
+  esriId.registerOAuthInfos([new OAuthInfo({
+    appId:       "qnGXmSaJYOW2gkg6",
+    portalUrl:   PORTAL,
+    popup:       false,
+    redirectUri: window.location.origin
+  })]);
+
+  esriId.checkSignInStatus(PORTAL + "/sharing")
+    .then(initApp)
+    .catch(() => esriId.getCredential(PORTAL + "/sharing"));
+
+  function initApp() {
+
+  // ── Config ───────────────────────────────────────────────
+  const TREATMENT_URL = "https://services.arcgis.com/s8wtJX9suxFen6TA/arcgis/rest/services/Land_Treatments_ALL/FeatureServer/0";
+  const MGMT_URL      = "https://services.arcgis.com/s8wtJX9suxFen6TA/arcgis/rest/services/SJRWMD_Management_Area_viewLayer/FeatureServer/0";
+
+  const CAT_COLOR = {
+    Forestry:   "#639922",
+    Fire:       "#E24B4A",
+    Mechanical: "#378ADD",
+    Chemical:   "#7F77DD"
+  };
+
+  const DISPLAY_FIELDS = [
+    "OBJECTID",
+    "TREATMENT_CATEGORY","TREATMENT_TYPE","TREATMENT_DETAIL",
+    "TREATMENT_STATUS","OBJECTIVE",
+    "REGION","MANAGEMENT_AREA",
+    "START_DATE","COMPLETE_DATE","FISCAL_YEAR","ACRES",
+    "TREATED_BY","CONTRACTOR","CONTRACT_NUM","FUND_SOURCE",
+    "TOTAL_COST","COST_PER_ACRE",
+    "SALE_NAME","STAND_ID","SILVICULTURE_TYPE","SPECIES","SITE_PREP_METHOD",
+    "HERB_RX","HERB_APP_DATE","SEEDLING_TYPE","PLANTING_METHOD","PLANTING_DENSITY",
+    "SEED_SOURCE","INITIAL_STOCKING","PERCENT_SURVIVAL",
+    "AUTHORIZATION_NUM","FMU_NUM","BURN_BOSS","CREW","ACRES_BURNED",
+    "CHEMICAL","CHEMICAL_RATE","TARGET_SPECIES","APPLICATION_METHOD",
+    "COMMENTS"
+  ];
+
+  const DETAIL_SECTIONS = [
+    { title: "Treatment",      fields: ["TREATMENT_CATEGORY","TREATMENT_TYPE","TREATMENT_DETAIL","TREATMENT_STATUS","OBJECTIVE"] },
+    { title: "Location",       fields: ["REGION","MANAGEMENT_AREA"] },
+    { title: "Dates & Area",   fields: ["START_DATE","COMPLETE_DATE","FISCAL_YEAR","ACRES"] },
+    { title: "Administration", fields: ["TREATED_BY","CONTRACTOR","CONTRACT_NUM","FUND_SOURCE","TOTAL_COST","COST_PER_ACRE"] },
+    { title: "Forestry",       fields: ["SALE_NAME","STAND_ID","SILVICULTURE_TYPE","SPECIES","SITE_PREP_METHOD","HERB_RX","HERB_APP_DATE","SEEDLING_TYPE","PLANTING_METHOD","PLANTING_DENSITY","SEED_SOURCE","INITIAL_STOCKING","PERCENT_SURVIVAL"] },
+    { title: "Fire",           fields: ["AUTHORIZATION_NUM","FMU_NUM","BURN_BOSS","CREW","ACRES_BURNED"] },
+    { title: "Chemical",       fields: ["CHEMICAL","CHEMICAL_RATE","TARGET_SPECIES","APPLICATION_METHOD"] }
+  ];
+
+  const FIELD_LABEL = {
+    TREATMENT_CATEGORY:"Category", TREATMENT_TYPE:"Type", TREATMENT_DETAIL:"Detail",
+    TREATMENT_STATUS:"Status", OBJECTIVE:"Objective",
+    REGION:"Region", MANAGEMENT_AREA:"Management Area",
+    START_DATE:"Start Date", COMPLETE_DATE:"Complete Date", FISCAL_YEAR:"Fiscal Year", ACRES:"Acres",
+    TREATED_BY:"Treated By", CONTRACTOR:"Contractor", CONTRACT_NUM:"Contract No.",
+    FUND_SOURCE:"Fund Source", TOTAL_COST:"Total Cost", COST_PER_ACRE:"Cost / Acre",
+    SALE_NAME:"Sale Name", STAND_ID:"Stand ID", SILVICULTURE_TYPE:"Silviculture Type",
+    SPECIES:"Species", SITE_PREP_METHOD:"Site Prep Method", HERB_RX:"Herbicide Rx",
+    HERB_APP_DATE:"Herb App Date", SEEDLING_TYPE:"Seedling Type",
+    PLANTING_METHOD:"Planting Method", PLANTING_DENSITY:"Planting Density (TPA)",
+    SEED_SOURCE:"Seed Source", INITIAL_STOCKING:"Initial Stocking", PERCENT_SURVIVAL:"% Survival",
+    AUTHORIZATION_NUM:"Authorization No.", FMU_NUM:"FMU Number",
+    BURN_BOSS:"Burn Boss", CREW:"Crew", ACRES_BURNED:"Acres Burned",
+    CHEMICAL:"Chemical", CHEMICAL_RATE:"Chemical Rate",
+    TARGET_SPECIES:"Target Species", APPLICATION_METHOD:"Application Method"
+  };
+
+  const DATE_FIELDS = new Set(["START_DATE","COMPLETE_DATE","HERB_APP_DATE"]);
+  const CURRENCY_FIELDS = new Set(["TOTAL_COST","COST_PER_ACRE"]);
+  const ACRES_FIELDS = new Set(["ACRES","ACRES_BURNED"]);
+
+  // ── State ────────────────────────────────────────────────
+  let activeCats    = new Set(["Forestry","Fire","Mechanical","Chemical"]);
+  let activeType    = "";
+  let activeYear    = "";
+  let activeArea    = "";
+  let clickMode     = false;
+  let highlight     = null;
+  let treatLV       = null;   // LayerView
+  let selectedOid   = null;
+  let conservationAreas = [];
+
+  // ── Layers ───────────────────────────────────────────────
+  function hexToRgba(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255, a];
+  }
+
+  function makeUVI(cat) {
+    const c = CAT_COLOR[cat];
+    return {
+      value: cat,
+      label: cat,
+      symbol: {
+        type: "simple-fill",
+        color: hexToRgba(c, 0.45),
+        outline: { type: "simple-line", color: hexToRgba(c, 0.85), width: 1 }
+      }
+    };
+  }
+
+  const treatmentLayer = new FeatureLayer({
+    url: TREATMENT_URL,
+    outFields: DISPLAY_FIELDS,
+    title: "Land Treatments",
+    renderer: {
+      type: "unique-value",
+      field: "TREATMENT_CATEGORY",
+      uniqueValueInfos: ["Forestry","Fire","Mechanical","Chemical"].map(makeUVI),
+      defaultSymbol: { type: "simple-fill", color: [150,150,150,0.35], outline: { type: "simple-line", color: [100,100,100,0.7], width: 1 } }
+    }
+  });
+
+  const mgmtLayer = new FeatureLayer({
+    url: MGMT_URL,
+    outFields: ["CONSERVATION_AREA","LM_REGION"],
+    title: "Management Areas",
+    renderer: {
+      type: "simple",
+      symbol: {
+        type: "simple-fill",
+        color: [0,0,0,0],
+        outline: { type: "simple-line", color: [90,90,90,0.65], width: 1.5, style: "dash" }
+      }
+    }
+  });
+
+  // ── Map & View ───────────────────────────────────────────
+  const map  = new Map({ basemap: "topo-vector", layers: [mgmtLayer, treatmentLayer] });
+  const view = new MapView({
+    container: "viewDiv",
+    map,
+    zoom: 9,
+    center: [-81.5, 29.2]
+  });
+  view.popup.autoOpenEnabled = false;
+
+  // ── Utilities ────────────────────────────────────────────
+  function buildWhere() {
+    const c = [];
+    if (activeCats.size === 0) return "1=0";
+    if (activeCats.size < 4) {
+      c.push(`TREATMENT_CATEGORY IN (${[...activeCats].map(x => `'${x}'`).join(",")})`);
+    }
+    if (activeType) c.push(`TREATMENT_TYPE = '${activeType.replace(/'/g,"''")}'`);
+    if (activeYear) c.push(`FISCAL_YEAR = '${activeYear.replace(/'/g,"''")}'`);
+    if (activeArea) c.push(`MANAGEMENT_AREA = '${activeArea.replace(/'/g,"''")}'`);
+    return c.length ? c.join(" AND ") : "1=1";
+  }
+
+  function formatVal(field, val) {
+    if (val === null || val === undefined || val === "") return null;
+    if (DATE_FIELDS.has(field)) {
+      const d = new Date(val);
+      return isNaN(d) ? String(val) : d.toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"});
+    }
+    if (CURRENCY_FIELDS.has(field)) return "$" + Number(val).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+    if (ACRES_FIELDS.has(field))    return Number(val).toLocaleString("en-US",{maximumFractionDigits:1}) + " ac";
+    if (field === "PERCENT_SURVIVAL") return val + "%";
+    return String(val);
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+
+  // ── Results List ─────────────────────────────────────────
+  function renderResults(features) {
+    const list  = document.getElementById("results-list");
+    const count = document.getElementById("results-count");
+    count.textContent = features.length.toLocaleString() + " treatment" + (features.length !== 1 ? "s" : "");
+
+    if (!features.length) {
+      list.innerHTML = `<div class="empty-msg">No treatments found${clickMode ? " at this location" : " in current view"}.</div>`;
+      return;
+    }
+
+    list.innerHTML = "";
+    features.forEach(f => {
+      const a   = f.attributes;
+      const cat = a.TREATMENT_CATEGORY || "";
+      const div = document.createElement("div");
+      div.className = "result-item" + (a.OBJECTID === selectedOid ? " selected" : "");
+      div.dataset.cat = cat;
+      div.dataset.oid = a.OBJECTID;
+
+      const line2 = [cat, a.TREATMENT_TYPE, a.TREATMENT_DETAIL].filter(Boolean).join(" · ");
+      const acStr = a.ACRES ? Number(a.ACRES).toLocaleString("en-US",{maximumFractionDigits:1}) + " ac" : "";
+      const line3 = [a.FISCAL_YEAR, acStr].filter(Boolean).join(" // ");
+
+      div.innerHTML = `
+        <div class="res-title">${esc(a.MANAGEMENT_AREA || "Unknown Area")}</div>
+        <div class="res-line2">${esc(line2)}</div>
+        <div class="res-line3">${esc(line3)}</div>`;
+
+      div.addEventListener("click", () => openDetail(f));
+      list.appendChild(div);
+    });
+  }
+
+  async function refreshFromExtent() {
+    if (clickMode || !treatLV) return;
+    document.getElementById("results-list").innerHTML = `<div class="empty-msg">Loading…</div>`;
+    try {
+      const q = treatmentLayer.createQuery();
+      q.geometry            = view.extent;
+      q.spatialRelationship = "intersects";
+      q.outFields           = DISPLAY_FIELDS;
+      q.returnGeometry      = false;
+      q.where               = buildWhere();
+      q.orderByFields       = ["COMPLETE_DATE DESC"];
+      q.num                 = 2000;
+      const res = await treatmentLayer.queryFeatures(q);
+      renderResults(res.features);
+    } catch(e) {
+      console.error(e);
+      document.getElementById("results-list").innerHTML = `<div class="empty-msg">Error loading results.</div>`;
+    }
+  }
+
+  // ── Map Click ────────────────────────────────────────────
+  view.on("click", async event => {
+    if (highlight) { highlight.remove(); highlight = null; }
+    document.getElementById("results-list").innerHTML = `<div class="empty-msg">Searching…</div>`;
+
+    try {
+      const q = treatmentLayer.createQuery();
+      q.geometry            = event.mapPoint;
+      q.spatialRelationship = "intersects";
+      q.outFields           = DISPLAY_FIELDS;
+      q.returnGeometry      = true;
+      q.where               = buildWhere();
+      q.orderByFields       = ["COMPLETE_DATE DESC"];
+      const res = await treatmentLayer.queryFeatures(q);
+
+      if (res.features.length && treatLV) highlight = treatLV.highlight(res.features);
+
+      clickMode = true;
+      document.getElementById("click-badge").style.display     = "inline";
+      document.getElementById("clear-click-btn").style.display = "inline";
+
+      renderResults(res.features);
+    } catch(e) { console.error(e); }
+  });
+
+  function clearClick() {
+    clickMode = false;
+    if (highlight) { highlight.remove(); highlight = null; }
+    document.getElementById("click-badge").style.display     = "none";
+    document.getElementById("clear-click-btn").style.display = "none";
+    refreshFromExtent();
+  }
+  document.getElementById("clear-click-btn").addEventListener("click", clearClick);
+
+  // ── Detail Panel ─────────────────────────────────────────
+  function openDetail(feature) {
+    const a   = feature.attributes;
+    const cat = a.TREATMENT_CATEGORY || "";
+
+    selectedOid = a.OBJECTID;
+    document.querySelectorAll(".result-item").forEach(el =>
+      el.classList.toggle("selected", +el.dataset.oid === selectedOid));
+
+    document.getElementById("detail-title").textContent    = a.MANAGEMENT_AREA || "Treatment Detail";
+    document.getElementById("detail-cat-badge").textContent = cat;
+
+    const hdr = document.getElementById("detail-header");
+    hdr.style.borderBottom = `3px solid ${CAT_COLOR[cat] || "#ccc"}`;
+
+    const body = document.getElementById("detail-body");
+    body.innerHTML = "";
+
+    DETAIL_SECTIONS.forEach(sec => {
+      const populated = sec.fields.filter(f => {
+        const v = a[f];
+        return v !== null && v !== undefined && v !== "";
+      });
+      if (!populated.length) return;
+
+      const secEl = document.createElement("div");
+      secEl.className = "detail-section";
+      secEl.innerHTML = `<div class="detail-section-title">${esc(sec.title)}</div>`;
+
+      populated.forEach(field => {
+        const fv = formatVal(field, a[field]);
+        if (!fv) return;
+        const row = document.createElement("div");
+        row.className = "detail-row";
+        row.innerHTML = `<span class="detail-label">${esc(FIELD_LABEL[field] || field)}</span><span class="detail-value">${esc(fv)}</span>`;
+        secEl.appendChild(row);
+      });
+
+      body.appendChild(secEl);
+    });
+
+    if (a.COMMENTS) {
+      const secEl = document.createElement("div");
+      secEl.className = "detail-section";
+      secEl.innerHTML = `<div class="detail-section-title">Comments</div><div class="detail-comments">${esc(a.COMMENTS)}</div>`;
+      body.appendChild(secEl);
+    }
+
+    document.getElementById("detail-pane").classList.add("open");
+  }
+
+  function closeDetail() {
+    document.getElementById("detail-pane").classList.remove("open");
+    selectedOid = null;
+    document.querySelectorAll(".result-item").forEach(el => el.classList.remove("selected"));
+  }
+  document.getElementById("back-btn").addEventListener("click", closeDetail);
+
+  // ── Filters ──────────────────────────────────────────────
+  document.querySelectorAll(".cat-pill").forEach(pill => {
+    pill.addEventListener("click", () => {
+      const cat = pill.dataset.cat;
+      if (activeCats.has(cat)) { activeCats.delete(cat); pill.classList.remove("active"); }
+      else                      { activeCats.add(cat);    pill.classList.add("active"); }
+      applyFilters();
+    });
+  });
+
+  ["type-select","year-select","area-select"].forEach(id => {
+    document.getElementById(id).addEventListener("change", e => {
+      if (id === "type-select") activeType = e.target.value;
+      if (id === "year-select") activeYear = e.target.value;
+      if (id === "area-select") activeArea = e.target.value;
+      applyFilters();
+    });
+  });
+
+  document.getElementById("clear-filters-btn").addEventListener("click", () => {
+    activeCats = new Set(["Forestry","Fire","Mechanical","Chemical"]);
+    document.querySelectorAll(".cat-pill").forEach(p => p.classList.add("active"));
+    activeType = ""; activeYear = ""; activeArea = "";
+    document.getElementById("type-select").value = "";
+    document.getElementById("year-select").value = "";
+    document.getElementById("area-select").value = "";
+    applyFilters();
+  });
+
+  function applyFilters() {
+    treatmentLayer.definitionExpression = buildWhere();
+    if (clickMode) clearClick();
+    else refreshFromExtent();
+  }
+
+  // ── Search ───────────────────────────────────────────────
+  const searchInput    = document.getElementById("search-input");
+  const searchDropdown = document.getElementById("search-dropdown");
+
+  searchInput.addEventListener("input", () => {
+    const val = searchInput.value.trim().toLowerCase();
+    if (!val) { searchDropdown.style.display = "none"; return; }
+    const matches = conservationAreas.filter(a => a.toLowerCase().includes(val)).slice(0, 12);
+    if (!matches.length) { searchDropdown.style.display = "none"; return; }
+    searchDropdown.innerHTML = matches.map(m => `<div class="search-option">${esc(m)}</div>`).join("");
+    searchDropdown.style.display = "block";
+  });
+
+  searchDropdown.addEventListener("click", e => {
+    if (e.target.classList.contains("search-option")) {
+      const val = e.target.textContent;
+      searchInput.value = val;
+      searchDropdown.style.display = "none";
+      document.getElementById("clear-search-btn").style.display = "inline";
+      doSearch(val);
+    }
+  });
+
+  document.getElementById("search-btn").addEventListener("click", () => {
+    const val = searchInput.value.trim();
+    if (!val) return;
+    searchDropdown.style.display = "none";
+    document.getElementById("clear-search-btn").style.display = "inline";
+    doSearch(val);
+  });
+
+  searchInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") document.getElementById("search-btn").click();
+    if (e.key === "Escape") searchDropdown.style.display = "none";
+  });
+
+  document.getElementById("clear-search-btn").addEventListener("click", () => {
+    searchInput.value = "";
+    searchDropdown.style.display = "none";
+    document.getElementById("clear-search-btn").style.display = "none";
+  });
+
+  document.addEventListener("click", e => {
+    if (!e.target.closest("#search-section")) searchDropdown.style.display = "none";
+  });
+
+  async function doSearch(name) {
+    try {
+      const q = mgmtLayer.createQuery();
+      q.where           = `UPPER(CONSERVATION_AREA) LIKE UPPER('%${name.replace(/'/g,"''")}%')`;
+      q.outFields       = ["CONSERVATION_AREA"];
+      q.returnGeometry  = true;
+      const res = await mgmtLayer.queryFeatures(q);
+      if (!res.features.length) return;
+      const ext = res.features.reduce((acc, f) => acc ? acc.union(f.geometry.extent) : f.geometry.extent, null);
+      if (ext) view.goTo(ext.expand(1.15));
+    } catch(e) { console.warn("Search error:", e); }
+  }
+
+  // ── Bootstrap ─────────────────────────────────────────────
+  async function loadFilterOptions() {
+    try {
+      const q = treatmentLayer.createQuery();
+      q.where          = "1=1";
+      q.outFields      = ["TREATMENT_TYPE","FISCAL_YEAR","MANAGEMENT_AREA"];
+      q.returnGeometry = false;
+      q.num            = 5000;
+      const res = await treatmentLayer.queryFeatures(q);
+      const attrs = res.features.map(f => f.attributes);
+
+      const types = [...new Set(attrs.map(a => a.TREATMENT_TYPE).filter(Boolean))].sort();
+      const years = [...new Set(attrs.map(a => a.FISCAL_YEAR).filter(Boolean))].sort().reverse();
+      const areas = [...new Set(attrs.map(a => a.MANAGEMENT_AREA).filter(Boolean))].sort();
+
+      const addOpts = (id, vals) => {
+        const sel = document.getElementById(id);
+        vals.forEach(v => { const o = document.createElement("option"); o.value = o.textContent = v; sel.appendChild(o); });
+      };
+      addOpts("type-select", types);
+      addOpts("year-select", years);
+      addOpts("area-select", areas);
+    } catch(e) { console.warn("Filter load error:", e); }
+  }
+
+  async function loadConservationAreas() {
+    try {
+      const q = mgmtLayer.createQuery();
+      q.where          = "1=1";
+      q.outFields      = ["CONSERVATION_AREA"];
+      q.returnGeometry = false;
+      q.num            = 2000;
+      const res = await mgmtLayer.queryFeatures(q);
+      conservationAreas = [...new Set(res.features.map(f => f.attributes.CONSERVATION_AREA).filter(Boolean))].sort();
+    } catch(e) { console.warn("Conservation area load error:", e); }
+  }
+
+  view.when(async () => {
+    treatLV = await view.whenLayerView(treatmentLayer);
+
+    reactiveUtils.watch(
+      () => view.stationary,
+      stationary => { if (stationary && !clickMode) refreshFromExtent(); }
+    );
+
+    await Promise.all([loadFilterOptions(), loadConservationAreas()]);
+    refreshFromExtent();
+
+    // Fade map tip after 6 s
+    setTimeout(() => {
+      const tip = document.getElementById("map-tip");
+      if (tip) { tip.style.opacity = "0"; setTimeout(() => tip.remove(), 700); }
+    }, 6000);
+  });
+
+  } // end initApp
+
+}); // end require
+</script>
+</body>
+</html>
