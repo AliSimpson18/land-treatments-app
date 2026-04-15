@@ -179,6 +179,52 @@
     }
     .filter-select:focus { outline: none; border-color: #1a4f72; }
     .filter-select.full-col { grid-column: 1 / -1; }
+
+    /* ── Multi-select dropdown ───────────────────── */
+    .multi-select { position: relative; }
+    .multi-select-btn {
+      width: 100%;
+      padding: 5px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: inherit;
+      background: white;
+      color: #333;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .multi-select-btn::after { content: "▾"; font-size: 10px; color: #888; margin-left: 4px; flex-shrink: 0; }
+    .multi-select-btn.active { border-color: #1a4f72; color: #1a4f72; font-weight: 600; }
+    .multi-select-btn.active::after { color: #1a4f72; }
+    .multi-select-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0; right: 0;
+      background: white;
+      border: 1px solid #ccc;
+      border-top: none;
+      border-radius: 0 0 4px 4px;
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 50;
+      display: none;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .multi-select-dropdown.open { display: block; }
+    .ms-option {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .ms-option:hover { background: #f0f5ff; }
+    .ms-option input { cursor: pointer; flex-shrink: 0; }
     #clear-filters-btn {
       font-size: 11px;
       color: #1a4f72;
@@ -530,7 +576,10 @@
     </div>
     <div class="dropdowns-grid">
       <select id="type-select"  class="filter-select"><option value="">All Types</option></select>
-      <select id="year-select"  class="filter-select"><option value="">All Years</option></select>
+      <div id="year-multiselect" class="multi-select">
+        <button id="year-ms-btn" class="multi-select-btn">All Years</button>
+        <div id="year-ms-dropdown" class="multi-select-dropdown"></div>
+      </div>
       <select id="area-select"  class="filter-select full-col"><option value="">All Management Areas</option></select>
     </div>
   </div>
@@ -684,7 +733,7 @@ require([
   // ── State ────────────────────────────────────────────────
   let activeCats      = new Set(["Forestry","Fire","Mechanical","Chemical"]);
   let activeType      = "";
-  let activeYear      = "";
+  let activeYears     = new Set();
   let activeArea      = "";
   let clickMode       = false;
   let hoverOid        = null;
@@ -759,7 +808,7 @@ require([
       c.push(`TREATMENT_CATEGORY IN (${[...activeCats].map(x => `'${x}'`).join(",")})`);
     }
     if (activeType) c.push(`TREATMENT_TYPE = '${activeType.replace(/'/g,"''")}'`);
-    if (activeYear) c.push(`FISCAL_YEAR = '${activeYear.replace(/'/g,"''")}'`);
+    if (activeYears.size > 0) c.push(`FISCAL_YEAR IN (${[...activeYears].map(y => `'${y.replace(/'/g,"''")}'`).join(",")})`);
     if (activeArea) c.push(`MANAGEMENT_AREA = '${activeArea.replace(/'/g,"''")}'`);
     return c.length ? c.join(" AND ") : "1=1";
   }
@@ -982,16 +1031,40 @@ require([
     });
   });
 
-  ["type-select","year-select","area-select"].forEach(id => {
+  ["type-select","area-select"].forEach(id => {
     document.getElementById(id).addEventListener("change", e => {
       if (id === "type-select") activeType = e.target.value;
-      if (id === "year-select") activeYear = e.target.value;
       if (id === "area-select") {
         activeArea = e.target.value;
         if (activeArea) zoomToManagementArea(activeArea);
       }
       applyFilters();
     });
+  });
+
+  function updateYearBtn() {
+    const btn = document.getElementById("year-ms-btn");
+    if (activeYears.size === 0) {
+      btn.textContent = "All Years";
+      btn.classList.remove("active");
+    } else if (activeYears.size === 1) {
+      btn.textContent = [...activeYears][0];
+      btn.classList.add("active");
+    } else {
+      btn.textContent = activeYears.size + " years selected";
+      btn.classList.add("active");
+    }
+  }
+
+  document.getElementById("year-ms-btn").addEventListener("click", e => {
+    e.stopPropagation();
+    document.getElementById("year-ms-dropdown").classList.toggle("open");
+  });
+
+  document.addEventListener("click", e => {
+    if (!e.target.closest("#year-multiselect")) {
+      document.getElementById("year-ms-dropdown").classList.remove("open");
+    }
   });
 
   async function zoomToManagementArea(name) {
@@ -1010,10 +1083,11 @@ require([
   document.getElementById("clear-filters-btn").addEventListener("click", () => {
     activeCats = new Set(["Forestry","Fire","Mechanical","Chemical"]);
     document.querySelectorAll(".cat-pill").forEach(p => p.classList.add("active"));
-    activeType = ""; activeYear = ""; activeArea = "";
+    activeType = ""; activeYears = new Set(); activeArea = "";
     document.getElementById("type-select").value = "";
-    document.getElementById("year-select").value = "";
     document.getElementById("area-select").value = "";
+    document.querySelectorAll("#year-ms-dropdown input[type=checkbox]").forEach(cb => cb.checked = false);
+    updateYearBtn();
     applyFilters();
   });
 
@@ -1216,8 +1290,21 @@ require([
         vals.forEach(v => { const o = document.createElement("option"); o.value = o.textContent = v; sel.appendChild(o); });
       };
       addOpts("type-select", types);
-      addOpts("year-select", years);
       addOpts("area-select", areas);
+
+      const yearDropdown = document.getElementById("year-ms-dropdown");
+      years.forEach(y => {
+        const div = document.createElement("div");
+        div.className = "ms-option";
+        div.innerHTML = `<input type="checkbox" value="${esc(y)}"> ${esc(y)}`;
+        div.querySelector("input").addEventListener("change", e => {
+          if (e.target.checked) activeYears.add(y);
+          else activeYears.delete(y);
+          updateYearBtn();
+          applyFilters();
+        });
+        yearDropdown.appendChild(div);
+      });
     } catch(e) { console.warn("Filter load error:", e); }
   }
 
