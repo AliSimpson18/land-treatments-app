@@ -770,10 +770,26 @@ require([
     document.getElementById(id).addEventListener("change", e => {
       if (id === "type-select") activeType = e.target.value;
       if (id === "year-select") activeYear = e.target.value;
-      if (id === "area-select") activeArea = e.target.value;
+      if (id === "area-select") {
+        activeArea = e.target.value;
+        if (activeArea) zoomToManagementArea(activeArea);
+      }
       applyFilters();
     });
   });
+
+  async function zoomToManagementArea(name) {
+    try {
+      const q = mgmtLayer.createQuery();
+      q.where          = `CONSERVATION_AREA = '${name.replace(/'/g,"''")}'`;
+      q.outFields      = ["CONSERVATION_AREA"];
+      q.returnGeometry = true;
+      const res = await mgmtLayer.queryFeatures(q);
+      if (!res.features.length) return;
+      const ext = res.features.reduce((acc, f) => acc ? acc.union(f.geometry.extent) : f.geometry.extent, null);
+      if (ext) view.goTo(ext.expand(1.15));
+    } catch(e) { console.warn("Zoom to area error:", e); }
+  }
 
   document.getElementById("clear-filters-btn").addEventListener("click", () => {
     activeCats = new Set(["Forestry","Fire","Mechanical","Chemical"]);
