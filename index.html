@@ -522,6 +522,8 @@ require([
   let activeArea    = "";
   let clickMode     = false;
   let highlight     = null;
+  let hoverHighlight = null;
+  let detailHighlight = null;
   let treatLV       = null;   // LayerView
   let selectedOid   = null;
   let conservationAreas = [];
@@ -639,6 +641,13 @@ require([
         <div class="res-line2">${esc(line2)}</div>
         <div class="res-line3">${esc(line3)}</div>`;
 
+      div.addEventListener("mouseenter", () => {
+        if (hoverHighlight) { hoverHighlight.remove(); hoverHighlight = null; }
+        if (treatLV) hoverHighlight = treatLV.highlight(a.OBJECTID);
+      });
+      div.addEventListener("mouseleave", () => {
+        if (hoverHighlight) { hoverHighlight.remove(); hoverHighlight = null; }
+      });
       div.addEventListener("click", () => openDetail(f));
       list.appendChild(div);
     });
@@ -707,6 +716,9 @@ require([
     document.querySelectorAll(".result-item").forEach(el =>
       el.classList.toggle("selected", +el.dataset.oid === selectedOid));
 
+    if (detailHighlight) { detailHighlight.remove(); detailHighlight = null; }
+    if (treatLV) detailHighlight = treatLV.highlight(a.OBJECTID);
+
     document.getElementById("detail-title").textContent    = a.MANAGEMENT_AREA || "Treatment Detail";
     document.getElementById("detail-cat-badge").textContent = cat;
 
@@ -753,6 +765,7 @@ require([
     document.getElementById("detail-pane").classList.remove("open");
     selectedOid = null;
     document.querySelectorAll(".result-item").forEach(el => el.classList.remove("selected"));
+    if (detailHighlight) { detailHighlight.remove(); detailHighlight = null; }
   }
   document.getElementById("back-btn").addEventListener("click", closeDetail);
 
