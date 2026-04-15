@@ -436,8 +436,10 @@ require([
   "esri/Map",
   "esri/views/MapView",
   "esri/layers/FeatureLayer",
+  "esri/layers/GraphicsLayer",
+  "esri/Graphic",
   "esri/core/reactiveUtils"
-], function(esriConfig, esriId, OAuthInfo, Map, MapView, FeatureLayer, reactiveUtils) {
+], function(esriConfig, esriId, OAuthInfo, Map, MapView, FeatureLayer, GraphicsLayer, Graphic, reactiveUtils) {
 
   const PORTAL = "https://floridaswater.maps.arcgis.com";
   esriConfig.portalUrl = PORTAL;
@@ -522,7 +524,7 @@ require([
   let activeArea    = "";
   let clickMode     = false;
   let highlight     = null;
-  let hoverHighlight = null;
+  let hoverOid = null;
   let detailHighlight = null;
   let treatLV       = null;   // LayerView
   let selectedOid   = null;
@@ -574,7 +576,8 @@ require([
   });
 
   // ── Map & View ───────────────────────────────────────────
-  const map  = new Map({ basemap: "topo-vector", layers: [mgmtLayer, treatmentLayer] });
+  const hoverLayer = new GraphicsLayer({ listMode: "hide" });
+  const map  = new Map({ basemap: "topo-vector", layers: [mgmtLayer, treatmentLayer, hoverLayer] });
   const view = new MapView({
     container: "viewDiv",
     map,
@@ -642,11 +645,27 @@ require([
         <div class="res-line3">${esc(line3)}</div>`;
 
       div.addEventListener("mouseenter", () => {
-        if (hoverHighlight) { hoverHighlight.remove(); hoverHighlight = null; }
-        if (treatLV) hoverHighlight = treatLV.highlight(a.OBJECTID);
+        hoverOid = a.OBJECTID;
+        hoverLayer.removeAll();
+        const q = treatmentLayer.createQuery();
+        q.objectIds     = [a.OBJECTID];
+        q.outFields     = [];
+        q.returnGeometry = true;
+        treatmentLayer.queryFeatures(q).then(res => {
+          if (!res.features.length || hoverOid !== a.OBJECTID) return;
+          hoverLayer.add(new Graphic({
+            geometry: res.features[0].geometry,
+            symbol: {
+              type: "simple-fill",
+              color: [255, 165, 0, 0.15],
+              outline: { type: "simple-line", color: [255, 140, 0, 1], width: 2.5 }
+            }
+          }));
+        }).catch(() => {});
       });
       div.addEventListener("mouseleave", () => {
-        if (hoverHighlight) { hoverHighlight.remove(); hoverHighlight = null; }
+        hoverOid = null;
+        hoverLayer.removeAll();
       });
       div.addEventListener("click", () => openDetail(f));
       list.appendChild(div);
@@ -676,6 +695,7 @@ require([
   // ── Map Click ────────────────────────────────────────────
   view.on("click", async event => {
     if (highlight) { highlight.remove(); highlight = null; }
+    hoverLayer.removeAll(); hoverOid = null;
     document.getElementById("results-list").innerHTML = `<div class="empty-msg">Searching…</div>`;
 
     try {
