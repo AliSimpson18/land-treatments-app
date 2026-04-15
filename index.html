@@ -365,7 +365,7 @@
 
   <div id="app-header">
     <h1>Land Treatment History</h1>
-    <p>SJRWMD &middot; ~2,037 records across ~700,000 acres</p>
+    <p>SJRWMD &middot; <span id="total-count">—</span> records</p>
   </div>
 
   <!-- Search -->
@@ -523,7 +523,6 @@ require([
   let activeYear    = "";
   let activeArea    = "";
   let clickMode     = false;
-  let highlight     = null;
   let hoverOid = null;
   let detailHighlight = null;
   let treatLV       = null;   // LayerView
@@ -577,7 +576,8 @@ require([
 
   // ── Map & View ───────────────────────────────────────────
   const hoverLayer = new GraphicsLayer({ listMode: "hide" });
-  const map  = new Map({ basemap: "topo-vector", layers: [mgmtLayer, treatmentLayer, hoverLayer] });
+  const pinLayer   = new GraphicsLayer({ listMode: "hide" });
+  const map  = new Map({ basemap: "topo-vector", layers: [mgmtLayer, treatmentLayer, hoverLayer, pinLayer] });
   const view = new MapView({
     container: "viewDiv",
     map,
@@ -694,8 +694,21 @@ require([
 
   // ── Map Click ────────────────────────────────────────────
   view.on("click", async event => {
-    if (highlight) { highlight.remove(); highlight = null; }
     hoverLayer.removeAll(); hoverOid = null;
+
+    // Drop a pin at the clicked point
+    pinLayer.removeAll();
+    pinLayer.add(new Graphic({
+      geometry: event.mapPoint,
+      symbol: {
+        type: "simple-marker",
+        style: "circle",
+        color: [26, 79, 114, 1],
+        size: 10,
+        outline: { color: [255, 255, 255, 1], width: 2 }
+      }
+    }));
+
     document.getElementById("results-list").innerHTML = `<div class="empty-msg">Searching…</div>`;
 
     try {
@@ -703,12 +716,10 @@ require([
       q.geometry            = event.mapPoint;
       q.spatialRelationship = "intersects";
       q.outFields           = DISPLAY_FIELDS;
-      q.returnGeometry      = true;
+      q.returnGeometry      = false;
       q.where               = buildWhere();
       q.orderByFields       = ["COMPLETE_DATE DESC"];
       const res = await treatmentLayer.queryFeatures(q);
-
-      if (res.features.length && treatLV) highlight = treatLV.highlight(res.features);
 
       clickMode = true;
       document.getElementById("click-badge").style.display     = "inline";
@@ -720,7 +731,7 @@ require([
 
   function clearClick() {
     clickMode = false;
-    if (highlight) { highlight.remove(); highlight = null; }
+    pinLayer.removeAll();
     document.getElementById("click-badge").style.display     = "none";
     document.getElementById("clear-click-btn").style.display = "none";
     refreshFromExtent();
@@ -924,6 +935,15 @@ require([
     } catch(e) { console.warn("Filter load error:", e); }
   }
 
+  async function loadTotalCount() {
+    try {
+      const q = treatmentLayer.createQuery();
+      q.where = "1=1";
+      const count = await treatmentLayer.queryFeatureCount(q);
+      document.getElementById("total-count").textContent = count.toLocaleString();
+    } catch(e) { console.warn("Count load error:", e); }
+  }
+
   async function loadConservationAreas() {
     try {
       const q = mgmtLayer.createQuery();
@@ -944,7 +964,7 @@ require([
       stationary => { if (stationary && !clickMode) refreshFromExtent(); }
     );
 
-    await Promise.all([loadFilterOptions(), loadConservationAreas()]);
+    await Promise.all([loadFilterOptions(), loadConservationAreas(), loadTotalCount()]);
     refreshFromExtent();
 
     // Fade map tip after 6 s
