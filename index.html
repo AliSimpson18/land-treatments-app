@@ -42,13 +42,6 @@
     #app-header h1 { font-size: 14px; font-weight: 600; letter-spacing: 0.2px; }
     #app-header p  { font-size: 11px; opacity: 0.72; margin-top: 2px; }
 
-    /* ── Search ─────────────────────────────────── */
-    #search-section {
-      background: white;
-      padding: 10px 14px;
-      border-bottom: 1px solid #e0e0e0;
-      flex-shrink: 0;
-    }
     .section-label {
       font-size: 10px;
       font-weight: 700;
@@ -57,59 +50,6 @@
       letter-spacing: 0.8px;
       margin-bottom: 6px;
     }
-    .search-row { display: flex; gap: 6px; }
-    .search-input-wrap { flex: 1; position: relative; }
-    #search-input {
-      width: 100%;
-      padding: 7px 10px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      font-size: 13px;
-      font-family: inherit;
-    }
-    #search-input:focus { outline: none; border-color: #1a4f72; box-shadow: 0 0 0 2px rgba(26,79,114,0.15); }
-    #search-dropdown {
-      position: absolute;
-      top: 100%;
-      left: 0; right: 0;
-      background: white;
-      border: 1px solid #ccc;
-      border-top: none;
-      border-radius: 0 0 4px 4px;
-      max-height: 180px;
-      overflow-y: auto;
-      z-index: 100;
-      display: none;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-    }
-    .search-option { padding: 8px 10px; cursor: pointer; font-size: 13px; }
-    .search-option:hover { background: #f0f5ff; }
-    #search-btn {
-      padding: 7px 13px;
-      background: #1a4f72;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 13px;
-      font-family: inherit;
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-    #search-btn:hover { background: #154060; }
-    #clear-search-btn {
-      padding: 5px 9px;
-      background: none;
-      color: #999;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 17px;
-      line-height: 1;
-      display: none;
-      flex-shrink: 0;
-    }
-    #clear-search-btn:hover { color: #555; }
 
     /* ── Filters ─────────────────────────────────── */
     #filters-section {
@@ -550,20 +490,7 @@
     <p>SJRWMD &middot; <span id="total-count">—</span> records</p>
   </div>
 
-  <!-- Search -->
-  <div id="search-section">
-    <div class="section-label">Search by Conservation Area</div>
-    <div class="search-row">
-      <div class="search-input-wrap">
-        <input id="search-input" type="text" placeholder="Type a conservation area name…" autocomplete="off">
-        <div id="search-dropdown"></div>
-      </div>
-      <button id="search-btn">Search</button>
-      <button id="clear-search-btn" title="Clear search">&times;</button>
-    </div>
-  </div>
-
-  <!-- Filters -->
+  <!--Filters -->
   <div id="filters-section">
     <div class="filters-header">
       <div class="section-label" style="margin-bottom:0">Filters</div>
@@ -747,7 +674,6 @@ require([
   let detailHighlight = null;
   let treatLV       = null;   // LayerView
   let selectedOid   = null;
-  let conservationAreas = [];
 
   // ── Layers ───────────────────────────────────────────────
   function hexToRgba(hex, a) {
@@ -1176,68 +1102,44 @@ require([
 
   function applyFilters() {
     treatmentLayer.definitionExpression = buildWhere();
+    refreshTypeOptions();
     refreshDetailOptions();
     if (clickMode) clearClick();
     else refreshFromExtent();
   }
 
-  // ── Search ───────────────────────────────────────────────
-  const searchInput    = document.getElementById("search-input");
-  const searchDropdown = document.getElementById("search-dropdown");
-
-  searchInput.addEventListener("input", () => {
-    const val = searchInput.value.trim().toLowerCase();
-    if (!val) { searchDropdown.style.display = "none"; return; }
-    const matches = conservationAreas.filter(a => a.toLowerCase().includes(val)).slice(0, 12);
-    if (!matches.length) { searchDropdown.style.display = "none"; return; }
-    searchDropdown.innerHTML = matches.map(m => `<div class="search-option">${esc(m)}</div>`).join("");
-    searchDropdown.style.display = "block";
-  });
-
-  searchDropdown.addEventListener("click", e => {
-    if (e.target.classList.contains("search-option")) {
-      const val = e.target.textContent;
-      searchInput.value = val;
-      searchDropdown.style.display = "none";
-      document.getElementById("clear-search-btn").style.display = "inline";
-      doSearch(val);
-    }
-  });
-
-  document.getElementById("search-btn").addEventListener("click", () => {
-    const val = searchInput.value.trim();
-    if (!val) return;
-    searchDropdown.style.display = "none";
-    document.getElementById("clear-search-btn").style.display = "inline";
-    doSearch(val);
-  });
-
-  searchInput.addEventListener("keydown", e => {
-    if (e.key === "Enter") document.getElementById("search-btn").click();
-    if (e.key === "Escape") searchDropdown.style.display = "none";
-  });
-
-  document.getElementById("clear-search-btn").addEventListener("click", () => {
-    searchInput.value = "";
-    searchDropdown.style.display = "none";
-    document.getElementById("clear-search-btn").style.display = "none";
-  });
-
-  document.addEventListener("click", e => {
-    if (!e.target.closest("#search-section")) searchDropdown.style.display = "none";
-  });
-
-  async function doSearch(name) {
+  async function refreshTypeOptions() {
     try {
-      const q = mgmtLayer.createQuery();
-      q.where           = `UPPER(CONSERVATION_AREA) LIKE UPPER('%${name.replace(/'/g,"''")}%')`;
-      q.outFields       = ["CONSERVATION_AREA"];
-      q.returnGeometry  = true;
-      const res = await mgmtLayer.queryFeatures(q);
-      if (!res.features.length) return;
-      const ext = res.features.reduce((acc, f) => acc ? acc.union(f.geometry.extent) : f.geometry.extent, null);
-      if (ext) view.goTo(ext.expand(1.15));
-    } catch(e) { console.warn("Search error:", e); }
+      const c = [];
+      if (activeCats.size === 0) {
+        const sel = document.getElementById("type-select");
+        sel.innerHTML = '<option value="">All Types</option>';
+        activeType = "";
+        return;
+      }
+      if (activeCats.size < 4) c.push(`TREATMENT_CATEGORY IN (${[...activeCats].map(x => `'${x}'`).join(",")})`);
+
+      const q = treatmentLayer.createQuery();
+      q.where          = c.length ? c.join(" AND ") : "1=1";
+      q.outFields      = ["TREATMENT_TYPE"];
+      q.returnGeometry = false;
+      q.num            = 5000;
+
+      const res   = await treatmentLayer.queryFeatures(q);
+      const types = [...new Set(res.features.map(f => f.attributes.TREATMENT_TYPE).filter(Boolean))].sort();
+
+      // If the selected type is no longer valid for the active categories, reset it
+      if (activeType && !types.includes(activeType)) activeType = "";
+
+      const sel = document.getElementById("type-select");
+      sel.innerHTML = '<option value="">All Types</option>';
+      types.forEach(t => {
+        const o = document.createElement("option");
+        o.value = o.textContent = t;
+        if (t === activeType) o.selected = true;
+        sel.appendChild(o);
+      });
+    } catch(e) { console.warn("Type options error:", e); }
   }
 
   // ── Export ───────────────────────────────────────────────
@@ -1359,13 +1261,12 @@ require([
     try {
       const q = treatmentLayer.createQuery();
       q.where          = "1=1";
-      q.outFields      = ["TREATMENT_TYPE","FISCAL_YEAR","MANAGEMENT_AREA"];
+      q.outFields      = ["FISCAL_YEAR","MANAGEMENT_AREA"];
       q.returnGeometry = false;
       q.num            = 5000;
       const res = await treatmentLayer.queryFeatures(q);
       const attrs = res.features.map(f => f.attributes);
 
-      const types = [...new Set(attrs.map(a => a.TREATMENT_TYPE).filter(Boolean))].sort();
       const years = [...new Set(attrs.map(a => a.FISCAL_YEAR).filter(Boolean))].sort().reverse();
       const areas = [...new Set(attrs.map(a => a.MANAGEMENT_AREA).filter(Boolean))].sort();
 
@@ -1373,7 +1274,6 @@ require([
         const sel = document.getElementById(id);
         vals.forEach(v => { const o = document.createElement("option"); o.value = o.textContent = v; sel.appendChild(o); });
       };
-      addOpts("type-select", types);
       addOpts("area-select", areas);
 
       const yearDropdown = document.getElementById("year-ms-dropdown");
@@ -1401,18 +1301,6 @@ require([
     } catch(e) { console.warn("Count load error:", e); }
   }
 
-  async function loadConservationAreas() {
-    try {
-      const q = mgmtLayer.createQuery();
-      q.where          = "1=1";
-      q.outFields      = ["CONSERVATION_AREA"];
-      q.returnGeometry = false;
-      q.num            = 2000;
-      const res = await mgmtLayer.queryFeatures(q);
-      conservationAreas = [...new Set(res.features.map(f => f.attributes.CONSERVATION_AREA).filter(Boolean))].sort();
-    } catch(e) { console.warn("Conservation area load error:", e); }
-  }
-
   view.when(async () => {
     treatLV = await view.whenLayerView(treatmentLayer);
 
@@ -1421,8 +1309,8 @@ require([
       stationary => { if (stationary && !clickMode) refreshFromExtent(); }
     );
 
-    await Promise.all([loadFilterOptions(), loadConservationAreas(), loadTotalCount()]);
-    await refreshDetailOptions();
+    await Promise.all([loadFilterOptions(), loadTotalCount()]);
+    await Promise.all([refreshTypeOptions(), refreshDetailOptions()]);
     refreshFromExtent();
 
     // Fade map tip after 6 s
