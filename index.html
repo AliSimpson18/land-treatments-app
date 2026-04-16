@@ -179,6 +179,7 @@
     }
     .filter-select:focus { outline: none; border-color: #1a4f72; }
     .filter-select.full-col { grid-column: 1 / -1; }
+    .multi-select.full-col  { grid-column: 1 / -1; }
 
     /* ── Multi-select dropdown ───────────────────── */
     .multi-select { position: relative; }
@@ -581,6 +582,10 @@
         <div id="year-ms-dropdown" class="multi-select-dropdown"></div>
       </div>
       <select id="area-select"  class="filter-select full-col"><option value="">All Management Areas</option></select>
+      <div id="detail-multiselect" class="multi-select full-col">
+        <button id="detail-ms-btn" class="multi-select-btn">All Treatment Details</button>
+        <div id="detail-ms-dropdown" class="multi-select-dropdown"></div>
+      </div>
     </div>
   </div>
 
@@ -735,6 +740,7 @@ require([
   let activeType      = "";
   let activeYears     = new Set();
   let activeArea      = "";
+  let activeDetails   = new Set();
   let clickMode       = false;
   let hoverOid        = null;
   let currentFeatures = [];
@@ -810,6 +816,7 @@ require([
     if (activeType) c.push(`TREATMENT_TYPE = '${activeType.replace(/'/g,"''")}'`);
     if (activeYears.size > 0) c.push(`FISCAL_YEAR IN (${[...activeYears].map(y => `'${y.replace(/'/g,"''")}'`).join(",")})`);
     if (activeArea) c.push(`MANAGEMENT_AREA = '${activeArea.replace(/'/g,"''")}'`);
+    if (activeDetails.size > 0) c.push(`TREATMENT_DETAIL IN (${[...activeDetails].map(d => `'${d.replace(/'/g,"''")}'`).join(",")})`);
     return c.length ? c.join(" AND ") : "1=1";
   }
 
@@ -1058,14 +1065,88 @@ require([
 
   document.getElementById("year-ms-btn").addEventListener("click", e => {
     e.stopPropagation();
+    document.getElementById("detail-ms-dropdown").classList.remove("open");
     document.getElementById("year-ms-dropdown").classList.toggle("open");
   });
 
-  document.addEventListener("click", e => {
-    if (!e.target.closest("#year-multiselect")) {
-      document.getElementById("year-ms-dropdown").classList.remove("open");
-    }
+  document.getElementById("detail-ms-btn").addEventListener("click", e => {
+    e.stopPropagation();
+    document.getElementById("year-ms-dropdown").classList.remove("open");
+    document.getElementById("detail-ms-dropdown").classList.toggle("open");
   });
+
+  document.addEventListener("click", e => {
+    if (!e.target.closest("#year-multiselect"))   document.getElementById("year-ms-dropdown").classList.remove("open");
+    if (!e.target.closest("#detail-multiselect")) document.getElementById("detail-ms-dropdown").classList.remove("open");
+  });
+
+  function updateDetailBtn() {
+    const btn = document.getElementById("detail-ms-btn");
+    if (activeDetails.size === 0) {
+      btn.textContent = "All Treatment Details";
+      btn.classList.remove("active");
+    } else if (activeDetails.size === 1) {
+      btn.textContent = [...activeDetails][0];
+      btn.classList.add("active");
+    } else {
+      btn.textContent = activeDetails.size + " details selected";
+      btn.classList.add("active");
+    }
+  }
+
+  async function refreshDetailOptions() {
+    try {
+      // Build WHERE without the detail filter so options stay context-aware
+      const c = [];
+      if (activeCats.size === 0) {
+        document.getElementById("detail-ms-dropdown").innerHTML =
+          `<div class="ms-option" style="color:#aaa;cursor:default;font-style:italic">No options available</div>`;
+        activeDetails.clear();
+        updateDetailBtn();
+        return;
+      }
+      if (activeCats.size < 4) c.push(`TREATMENT_CATEGORY IN (${[...activeCats].map(x => `'${x}'`).join(",")})`);
+      if (activeType) c.push(`TREATMENT_TYPE = '${activeType.replace(/'/g,"''")}'`);
+      if (activeYears.size > 0) c.push(`FISCAL_YEAR IN (${[...activeYears].map(y => `'${y.replace(/'/g,"''")}'`).join(",")})`);
+      if (activeArea) c.push(`MANAGEMENT_AREA = '${activeArea.replace(/'/g,"''")}'`);
+
+      const q = treatmentLayer.createQuery();
+      q.where          = c.length ? c.join(" AND ") : "1=1";
+      q.outFields      = ["TREATMENT_DETAIL"];
+      q.returnGeometry = false;
+      q.num            = 5000;
+
+      const res     = await treatmentLayer.queryFeatures(q);
+      const details = [...new Set(res.features.map(f => f.attributes.TREATMENT_DETAIL).filter(Boolean))].sort();
+
+      // Drop any selected details that no longer exist in the new context
+      activeDetails = new Set([...activeDetails].filter(d => details.includes(d)));
+
+      const dropdown = document.getElementById("detail-ms-dropdown");
+      dropdown.innerHTML = "";
+
+      if (!details.length) {
+        dropdown.innerHTML = `<div class="ms-option" style="color:#aaa;cursor:default;font-style:italic">No options available</div>`;
+        updateDetailBtn();
+        return;
+      }
+
+      details.forEach(d => {
+        const div = document.createElement("div");
+        div.className = "ms-option";
+        div.innerHTML = `<input type="checkbox" value="${esc(d)}"${activeDetails.has(d) ? " checked" : ""}> ${esc(d)}`;
+        div.querySelector("input").addEventListener("change", e => {
+          if (e.target.checked) activeDetails.add(d);
+          else activeDetails.delete(d);
+          updateDetailBtn();
+          applyFilters();
+        });
+        dropdown.appendChild(div);
+      });
+
+      updateDetailBtn();
+    } catch(e) { console.warn("Detail options error:", e); }
+  }
 
   async function zoomToManagementArea(name) {
     try {
@@ -1083,16 +1164,19 @@ require([
   document.getElementById("clear-filters-btn").addEventListener("click", () => {
     activeCats = new Set(["Forestry","Fire","Mechanical","Chemical"]);
     document.querySelectorAll(".cat-pill").forEach(p => p.classList.add("active"));
-    activeType = ""; activeYears = new Set(); activeArea = "";
+    activeType = ""; activeYears = new Set(); activeArea = ""; activeDetails = new Set();
     document.getElementById("type-select").value = "";
     document.getElementById("area-select").value = "";
     document.querySelectorAll("#year-ms-dropdown input[type=checkbox]").forEach(cb => cb.checked = false);
     updateYearBtn();
+    document.querySelectorAll("#detail-ms-dropdown input[type=checkbox]").forEach(cb => cb.checked = false);
+    updateDetailBtn();
     applyFilters();
   });
 
   function applyFilters() {
     treatmentLayer.definitionExpression = buildWhere();
+    refreshDetailOptions();
     if (clickMode) clearClick();
     else refreshFromExtent();
   }
@@ -1338,6 +1422,7 @@ require([
     );
 
     await Promise.all([loadFilterOptions(), loadConservationAreas(), loadTotalCount()]);
+    await refreshDetailOptions();
     refreshFromExtent();
 
     // Fade map tip after 6 s
