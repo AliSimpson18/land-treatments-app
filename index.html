@@ -1027,7 +1027,13 @@ require([
         }
       }
 
-      renderResults([...lmFeatures, ...invFeatures]);
+      const combined = [...lmFeatures, ...invFeatures];
+      combined.sort((a, b) => {
+        const da = a.attributes._workDT ?? a.attributes.COMPLETE_DATE ?? a.attributes.DT ?? 0;
+        const db = b.attributes._workDT ?? b.attributes.COMPLETE_DATE ?? b.attributes.DT ?? 0;
+        return db - da;
+      });
+      renderResults(combined);
     } catch(e) {
       console.error(e);
       document.getElementById("results-list").innerHTML = `<div class="empty-msg">Error loading results.</div>`;
@@ -1071,8 +1077,13 @@ require([
       document.getElementById("click-badge").style.display     = "inline";
       document.getElementById("clear-click-btn").style.display = "inline";
 
-      invasiveFeats.sort((a, b) => (b.attributes._workDT ?? b.attributes.DT ?? 0) - (a.attributes._workDT ?? a.attributes.DT ?? 0));
-      renderResults([...lmRes.features, ...invasiveFeats]);
+      const combined = [...lmRes.features, ...invasiveFeats];
+      combined.sort((a, b) => {
+        const da = a.attributes._workDT ?? a.attributes.COMPLETE_DATE ?? a.attributes.DT ?? 0;
+        const db = b.attributes._workDT ?? b.attributes.COMPLETE_DATE ?? b.attributes.DT ?? 0;
+        return db - da;
+      });
+      renderResults(combined);
     } catch(e) { console.error(e); }
   });
 
@@ -1234,8 +1245,7 @@ require([
       ["Fiscal Year",       a.FSCL_YR],
       ["Acres Treated",     a.ACRS != null ? fmtNum(a.ACRS) + " ac" : ""],
       ["Infested Acres",    a.INFESTED_ACRS != null ? fmtNum(a.INFESTED_ACRS) + " ac" : ""],
-      ["Density",           a.DENS],
-      ["Current Status",    a.CUR]
+      ["Density",           a.DENS]
     ]);
 
     addSection("Location", [
