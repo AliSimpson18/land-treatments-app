@@ -1846,13 +1846,29 @@ require([
       const specSel = document.getElementById("inv-species-select");
       species.forEach(s => { const o = document.createElement("option"); o.value = o.textContent = s; specSel.appendChild(o); });
 
-      const yrDropdown = document.getElementById("inv-year-ms-dropdown");
+      // Most recent base FY keeps individual quarters; all prior FYs are grouped
+      const mostRecentBase = years.length ? years[0].split(" ")[0] : null;
+
+      // Build display items: quarters for current FY, one entry per base FY for older ones
+      const addedBases = new Set();
+      const displayItems = []; // { label, value, isCurrentFY }
       years.forEach(y => {
+        const base = y.split(" ")[0];
+        if (base === mostRecentBase) {
+          displayItems.push({ label: y, value: y, isCurrentFY: true });
+        } else if (!addedBases.has(base)) {
+          addedBases.add(base);
+          displayItems.push({ label: base, value: base, isCurrentFY: false });
+        }
+      });
+
+      const yrDropdown = document.getElementById("inv-year-ms-dropdown");
+      displayItems.forEach(({ label, value }) => {
         const div = document.createElement("div");
         div.className = "ms-option";
-        div.innerHTML = `<input type="checkbox" value="${esc(y)}"> ${esc(y)}`;
+        div.innerHTML = `<input type="checkbox" value="${esc(value)}"> ${esc(label)}`;
         div.querySelector("input").addEventListener("change", cb => {
-          if (cb.target.checked) activeInvYears.add(y); else activeInvYears.delete(y);
+          if (cb.target.checked) activeInvYears.add(value); else activeInvYears.delete(value);
           updateInvYearBtn();
           applyInvasiveFilters();
         });
@@ -1860,15 +1876,14 @@ require([
       });
 
       // Default to all quarters of the most recent fiscal year
-      if (years.length) {
-        const baseFY = years[0].split(" ")[0]; // e.g. "2025-26" from "2025-26 Q4"
-        const defaultYears = years.filter(y => y.split(" ")[0] === baseFY);
-        defaultYears.forEach(y => activeInvYears.add(y));
+      if (mostRecentBase) {
+        const defaultVals = displayItems.filter(i => i.isCurrentFY).map(i => i.value);
+        defaultVals.forEach(v => activeInvYears.add(v));
         yrDropdown.querySelectorAll("input[type=checkbox]").forEach(cb => {
-          if (defaultYears.includes(cb.value)) cb.checked = true;
+          if (defaultVals.includes(cb.value)) cb.checked = true;
         });
         updateInvYearBtn();
-        const startYr = parseInt(baseFY.split("-")[0]);
+        const startYr = parseInt(mostRecentBase.split("-")[0]);
         if (!isNaN(startYr)) {
           const where = `DT >= DATE '${startYr}-10-01' AND DT < DATE '${startYr + 1}-10-01'`;
           invLineLayer.definitionExpression = where;
