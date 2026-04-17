@@ -720,7 +720,9 @@ require([
   let hoverOid        = null;
   let currentFeatures = [];
   let detailHighlight = null;
-  let treatLV       = null;   // LayerView
+  let treatLV       = null;
+  let invLineLV     = null;
+  let invAreaLV     = null;
   let selectedKey     = null;   // String key — LM: String(OBJECTID), invasive: "inv_OID_type"
   let previousExtent  = null;
 
@@ -875,7 +877,8 @@ require([
         div.dataset.key = itemKey;
         const spcs  = a._speciesName || a.SPCS || "";
         const acStr = a.ACRS ? Number(a.ACRS).toLocaleString("en-US",{maximumFractionDigits:1}) + " ac" : "";
-        const dtStr = a.DT ? new Date(a.DT).toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"}) : "";
+        const dtVal = a._workDT != null ? a._workDT : a.DT;
+        const dtStr = dtVal ? new Date(dtVal).toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"}) : "";
         const herbStr = [a.HRBCID1, a.HRBCID2, a.HRBCID3].filter(Boolean).join(", ");
         div.innerHTML = `
           <div class="res-title">${esc(a.MGT_AREA || spcs || "Invasive Treatment")}<span class="invasive-tag">Invasive Plant</span></div>
@@ -1190,6 +1193,8 @@ require([
       el.classList.toggle("selected", el.dataset.key === selectedKey));
 
     if (detailHighlight) { detailHighlight.remove(); detailHighlight = null; }
+    const invLV = feature._layerType === "line" ? invLineLV : invAreaLV;
+    if (invLV) detailHighlight = invLV.highlight(a.OBJECTID);
 
     if (feature.geometry) {
       const ext = feature.geometry.extent || feature.geometry.clone().extent;
@@ -1843,7 +1848,11 @@ require([
   }
 
   view.when(async () => {
-    treatLV = await view.whenLayerView(treatmentLayer);
+    [treatLV, invLineLV, invAreaLV] = await Promise.all([
+      view.whenLayerView(treatmentLayer),
+      view.whenLayerView(invLineLayer),
+      view.whenLayerView(invAreaLayer)
+    ]);
 
     reactiveUtils.watch(
       () => view.stationary,
