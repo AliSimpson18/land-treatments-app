@@ -673,7 +673,8 @@ require([
   let currentFeatures = [];
   let detailHighlight = null;
   let treatLV       = null;   // LayerView
-  let selectedOid   = null;
+  let selectedOid     = null;
+  let previousExtent  = null;
 
   // ── Layers ───────────────────────────────────────────────
   function hexToRgba(hex, a) {
@@ -897,12 +898,24 @@ require([
     const a   = feature.attributes;
     const cat = a.TREATMENT_CATEGORY || "";
 
+    previousExtent = view.extent.clone();
+
     selectedOid = a.OBJECTID;
     document.querySelectorAll(".result-item").forEach(el =>
       el.classList.toggle("selected", +el.dataset.oid === selectedOid));
 
     if (detailHighlight) { detailHighlight.remove(); detailHighlight = null; }
     if (treatLV) detailHighlight = treatLV.highlight(a.OBJECTID);
+
+    const gq = treatmentLayer.createQuery();
+    gq.objectIds     = [a.OBJECTID];
+    gq.outFields     = [];
+    gq.returnGeometry = true;
+    treatmentLayer.queryFeatures(gq).then(res => {
+      if (res.features.length && selectedOid === a.OBJECTID) {
+        view.goTo(res.features[0].geometry.extent.expand(2), { duration: 600 });
+      }
+    }).catch(() => {});
 
     document.getElementById("detail-title").textContent    = a.MANAGEMENT_AREA || "Treatment Detail";
     document.getElementById("detail-cat-badge").textContent = cat;
@@ -951,6 +964,7 @@ require([
     selectedOid = null;
     document.querySelectorAll(".result-item").forEach(el => el.classList.remove("selected"));
     if (detailHighlight) { detailHighlight.remove(); detailHighlight = null; }
+    if (previousExtent) { view.goTo(previousExtent, { duration: 600 }); previousExtent = null; }
   }
   document.getElementById("back-btn").addEventListener("click", closeDetail);
 
