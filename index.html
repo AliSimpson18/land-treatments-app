@@ -1,0 +1,1328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Land Treatment History — SJRWMD</title>
+  <link rel="stylesheet" href="https://js.arcgis.com/4.30/esri/themes/light/main.css">
+  <script src="https://js.arcgis.com/4.30/"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      display: flex;
+      height: 100vh;
+      font-family: "Avenir Next", Avenir, Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      color: #333;
+    }
+
+    /* ── Left Panel ─────────────────────────────── */
+    #left-panel {
+      width: 35%;
+      min-width: 340px;
+      max-width: 500px;
+      display: flex;
+      flex-direction: column;
+      background: #f5f5f5;
+      border-right: 1px solid #d0d0d0;
+      overflow: hidden;
+      position: relative;
+      z-index: 5;
+      flex-shrink: 0;
+    }
+
+    #app-header {
+      background: #1a4f72;
+      color: white;
+      padding: 13px 16px 11px;
+      flex-shrink: 0;
+    }
+    #app-header h1 { font-size: 14px; font-weight: 600; letter-spacing: 0.2px; }
+    #app-header p  { font-size: 11px; opacity: 0.72; margin-top: 2px; }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 6px;
+    }
+
+    /* ── Filters ─────────────────────────────────── */
+    #filters-section {
+      background: white;
+      padding: 10px 14px;
+      border-bottom: 1px solid #e0e0e0;
+      flex-shrink: 0;
+    }
+    .filters-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    #category-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+    .cat-pill {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 11px;
+      border-radius: 20px;
+      border: 1.5px solid;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 0.15s ease;
+      user-select: none;
+      opacity: 0.45;
+    }
+    .cat-pill.active { opacity: 1; }
+    .pill-dot { width: 7px; height: 7px; border-radius: 50%; }
+
+    .cat-pill[data-cat="Forestry"]   { border-color: #639922; color: #639922; }
+    .cat-pill[data-cat="Forestry"].active   { background: #639922; color: white; }
+    .cat-pill[data-cat="Forestry"]   .pill-dot { background: #639922; }
+    .cat-pill[data-cat="Forestry"].active   .pill-dot { background: white; }
+
+    .cat-pill[data-cat="Fire"]       { border-color: #E24B4A; color: #E24B4A; }
+    .cat-pill[data-cat="Fire"].active       { background: #E24B4A; color: white; }
+    .cat-pill[data-cat="Fire"]       .pill-dot { background: #E24B4A; }
+    .cat-pill[data-cat="Fire"].active       .pill-dot { background: white; }
+
+    .cat-pill[data-cat="Mechanical"] { border-color: #378ADD; color: #378ADD; }
+    .cat-pill[data-cat="Mechanical"].active { background: #378ADD; color: white; }
+    .cat-pill[data-cat="Mechanical"] .pill-dot { background: #378ADD; }
+    .cat-pill[data-cat="Mechanical"].active .pill-dot { background: white; }
+
+    .cat-pill[data-cat="Chemical"]   { border-color: #7F77DD; color: #7F77DD; }
+    .cat-pill[data-cat="Chemical"].active   { background: #7F77DD; color: white; }
+    .cat-pill[data-cat="Chemical"]   .pill-dot { background: #7F77DD; }
+    .cat-pill[data-cat="Chemical"].active   .pill-dot { background: white; }
+
+    .dropdowns-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .filter-select {
+      width: 100%;
+      padding: 5px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: inherit;
+      background: white;
+      color: #333;
+    }
+    .filter-select:focus { outline: none; border-color: #1a4f72; }
+    .filter-select.full-col { grid-column: 1 / -1; }
+    .multi-select.full-col  { grid-column: 1 / -1; }
+
+    /* ── Multi-select dropdown ───────────────────── */
+    .multi-select { position: relative; }
+    .multi-select-btn {
+      width: 100%;
+      padding: 5px 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: inherit;
+      background: white;
+      color: #333;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .multi-select-btn::after { content: "▾"; font-size: 10px; color: #888; margin-left: 4px; flex-shrink: 0; }
+    .multi-select-btn.active { border-color: #1a4f72; color: #1a4f72; font-weight: 600; }
+    .multi-select-btn.active::after { color: #1a4f72; }
+    .multi-select-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0; right: 0;
+      background: white;
+      border: 1px solid #ccc;
+      border-top: none;
+      border-radius: 0 0 4px 4px;
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 50;
+      display: none;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .multi-select-dropdown.open { display: block; }
+    .ms-option {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 6px 10px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .ms-option:hover { background: #f0f5ff; }
+    .ms-option input { cursor: pointer; flex-shrink: 0; }
+    #clear-filters-btn {
+      font-size: 11px;
+      color: #1a4f72;
+      background: none;
+      border: none;
+      cursor: pointer;
+      text-decoration: underline;
+      padding: 0;
+    }
+
+    /* ── Results Pane ────────────────────────────── */
+    #results-pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #results-bar {
+      background: #eeeeee;
+      padding: 7px 14px;
+      display: flex;
+      justify-content: flex-start;
+      align-items: center;
+      border-bottom: 1px solid #d8d8d8;
+      flex-shrink: 0;
+      gap: 8px;
+    }
+    #results-count { font-size: 12px; color: #555; font-weight: 600; }
+    #click-badge {
+      font-size: 11px;
+      background: #1a4f72;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 10px;
+      display: none;
+      white-space: nowrap;
+    }
+    #clear-click-btn {
+      font-size: 11px;
+      color: #1a4f72;
+      background: none;
+      border: none;
+      cursor: pointer;
+      text-decoration: underline;
+      display: none;
+      white-space: nowrap;
+    }
+    #results-list { flex: 1; overflow-y: auto; }
+
+    .result-item {
+      padding: 10px 14px 10px 18px;
+      border-bottom: 1px solid #ebebeb;
+      cursor: pointer;
+      background: white;
+      position: relative;
+      transition: background 0.1s;
+    }
+    .result-item:hover   { background: #f5f8ff; }
+    .result-item.selected { background: #e8f0fa; }
+    .result-item::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 4px;
+    }
+    .result-item[data-cat="Forestry"]::before   { background: #639922; }
+    .result-item[data-cat="Fire"]::before       { background: #E24B4A; }
+    .result-item[data-cat="Mechanical"]::before { background: #378ADD; }
+    .result-item[data-cat="Chemical"]::before   { background: #7F77DD; }
+
+    .res-title { font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 2px; }
+    .res-line2 { font-size: 12px; color: #555; margin-bottom: 1px; }
+    .res-line3 { font-size: 11px; color: #888; }
+
+    .empty-msg {
+      padding: 28px 16px;
+      text-align: center;
+      color: #aaa;
+      font-size: 13px;
+    }
+
+    /* ── Detail Pane ─────────────────────────────── */
+    #detail-pane {
+      position: absolute;
+      inset: 0;
+      background: white;
+      display: flex;
+      flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.25s ease;
+      z-index: 20;
+      overflow: hidden;
+    }
+    #detail-pane.open { transform: translateX(0); }
+
+    #detail-header {
+      background: #1a4f72;
+      color: white;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    #back-btn {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.45);
+      color: white;
+      border-radius: 4px;
+      padding: 4px 10px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: inherit;
+      flex-shrink: 0;
+    }
+    #back-btn:hover { background: rgba(255,255,255,0.15); }
+    #detail-title { font-size: 13px; font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #detail-cat-badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.22);
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    #detail-body { flex: 1; overflow-y: auto; padding: 14px; }
+
+    .detail-section { margin-bottom: 14px; }
+    .detail-section-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 4px;
+      margin-bottom: 8px;
+    }
+    .detail-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 4px 0;
+      border-bottom: 1px solid #f5f5f5;
+      font-size: 13px;
+    }
+    .detail-label { color: #777; font-weight: 500; min-width: 120px; flex-shrink: 0; }
+    .detail-value { color: #1a1a1a; text-align: right; word-break: break-word; }
+    .detail-comments {
+      font-size: 13px;
+      color: #333;
+      line-height: 1.55;
+      background: #fafafa;
+      border: 1px solid #eee;
+      border-radius: 4px;
+      padding: 8px 10px;
+    }
+
+    /* ── Map Panel ───────────────────────────────── */
+    #map-panel { flex: 1; position: relative; overflow: hidden; }
+    #viewDiv   { width: 100%; height: 100%; }
+
+    /* ── Export ─────────────────────────────────── */
+    #export-btn {
+      font-size: 11px;
+      padding: 4px 9px;
+      background: #1a4f72;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-left: auto;
+      flex-shrink: 0;
+      display: none;
+    }
+    #export-btn:hover { background: #154060; }
+
+    #export-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    #export-overlay.open { display: flex; }
+    #export-modal {
+      background: white;
+      border-radius: 6px;
+      width: 460px;
+      max-width: 95vw;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+      overflow: hidden;
+    }
+    #export-modal-header {
+      background: #1a4f72;
+      color: white;
+      padding: 11px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    #export-modal-title { font-size: 14px; font-weight: 600; }
+    #export-close-btn {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.4);
+      color: white;
+      border-radius: 4px;
+      padding: 2px 8px;
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+    }
+    #export-close-btn:hover { background: rgba(255,255,255,0.15); }
+    #export-modal-body { flex: 1; overflow-y: auto; padding: 14px 16px; }
+    .export-format-row { display: flex; gap: 20px; margin-bottom: 14px; font-size: 13px; }
+    .export-format-row label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    .export-fields-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .export-select-btns { display: flex; gap: 6px; }
+    .export-select-btns button {
+      font-size: 11px;
+      color: #1a4f72;
+      background: none;
+      border: 1px solid #1a4f72;
+      border-radius: 3px;
+      padding: 2px 8px;
+      cursor: pointer;
+    }
+    .export-select-btns button:hover { background: #f0f5ff; }
+    .export-group { margin-bottom: 12px; }
+    .export-group-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 3px;
+      margin-bottom: 6px;
+    }
+    .export-fields-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2px 8px;
+    }
+    .export-field-label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 2px 0;
+      color: #333;
+    }
+    .export-field-label.empty { color: #c0c0c0; }
+    .export-field-label input { cursor: pointer; flex-shrink: 0; }
+    #export-modal-footer {
+      padding: 10px 16px;
+      border-top: 1px solid #eee;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    #export-cancel-btn {
+      padding: 7px 14px;
+      background: none;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-family: inherit;
+    }
+    #export-cancel-btn:hover { background: #f5f5f5; }
+    #export-do-btn {
+      padding: 7px 18px;
+      background: #1a4f72;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-family: inherit;
+      font-weight: 600;
+    }
+    #export-do-btn:hover { background: #154060; }
+
+    #map-tip {
+      position: absolute;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.6);
+      color: white;
+      padding: 7px 15px;
+      border-radius: 20px;
+      font-size: 12px;
+      pointer-events: none;
+      white-space: nowrap;
+      z-index: 5;
+      transition: opacity 0.6s;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ Left Panel ══════════════════════════════════════════ -->
+<div id="left-panel">
+
+  <div id="app-header">
+    <h1>Land Treatment History</h1>
+    <p>SJRWMD &middot; <span id="total-count">—</span> records</p>
+  </div>
+
+  <!--Filters -->
+  <div id="filters-section">
+    <div class="filters-header">
+      <div class="section-label" style="margin-bottom:0">Filters</div>
+      <button id="clear-filters-btn">Clear all</button>
+    </div>
+    <div id="category-pills">
+      <div class="cat-pill active" data-cat="Forestry"><span class="pill-dot"></span>Forestry</div>
+      <div class="cat-pill active" data-cat="Fire"><span class="pill-dot"></span>Fire</div>
+      <div class="cat-pill active" data-cat="Mechanical"><span class="pill-dot"></span>Mechanical</div>
+      <div class="cat-pill active" data-cat="Chemical"><span class="pill-dot"></span>Chemical</div>
+    </div>
+    <div class="dropdowns-grid">
+      <select id="area-select"  class="filter-select full-col"><option value="">All Management Areas</option></select>
+      <select id="type-select"  class="filter-select"><option value="">All Types</option></select>
+      <div id="year-multiselect" class="multi-select">
+        <button id="year-ms-btn" class="multi-select-btn">All Years</button>
+        <div id="year-ms-dropdown" class="multi-select-dropdown"></div>
+      </div>
+      <div id="detail-multiselect" class="multi-select full-col">
+        <button id="detail-ms-btn" class="multi-select-btn">All Treatment Details</button>
+        <div id="detail-ms-dropdown" class="multi-select-dropdown"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results pane (contains results list + overlaid detail pane) -->
+  <div id="results-pane">
+    <div id="results-bar">
+      <span id="results-count">Loading…</span>
+      <span id="click-badge">Map Click</span>
+      <button id="clear-click-btn">Show all in view</button>
+      <button id="export-btn">&#8595; Export</button>
+    </div>
+    <div id="results-list"></div>
+
+    <!-- Detail panel slides over results list -->
+    <div id="detail-pane">
+      <div id="detail-header">
+        <button id="back-btn">&#8592; Back</button>
+        <span id="detail-title"></span>
+        <span id="detail-cat-badge"></span>
+      </div>
+      <div id="detail-body"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══ Map Panel ═══════════════════════════════════════════ -->
+<div id="map-panel">
+  <div id="viewDiv"></div>
+  <div id="map-tip">Click anywhere on the map to find all overlapping treatments</div>
+</div>
+
+<!-- ══ Export Modal ════════════════════════════════════════ -->
+<div id="export-overlay">
+  <div id="export-modal">
+    <div id="export-modal-header">
+      <span id="export-modal-title">Export Treatments</span>
+      <button id="export-close-btn">&times;</button>
+    </div>
+    <div id="export-modal-body">
+      <div class="export-format-row">
+        <label><input type="radio" name="export-fmt" value="csv" checked> CSV (.csv)</label>
+        <label><input type="radio" name="export-fmt" value="xlsx"> Excel (.xlsx)</label>
+      </div>
+      <div class="export-fields-header">
+        <div class="section-label" style="margin-bottom:0">Fields to export</div>
+        <div class="export-select-btns">
+          <button id="export-select-all">All</button>
+          <button id="export-select-none">None</button>
+        </div>
+      </div>
+      <div id="export-fields-list"></div>
+    </div>
+    <div id="export-modal-footer">
+      <button id="export-cancel-btn">Cancel</button>
+      <button id="export-do-btn">Export</button>
+    </div>
+  </div>
+</div>
+
+<script>
+require([
+  "esri/config",
+  "esri/identity/IdentityManager",
+  "esri/identity/OAuthInfo",
+  "esri/Map",
+  "esri/views/MapView",
+  "esri/layers/FeatureLayer",
+  "esri/layers/GraphicsLayer",
+  "esri/Graphic",
+  "esri/core/reactiveUtils"
+], function(esriConfig, esriId, OAuthInfo, Map, MapView, FeatureLayer, GraphicsLayer, Graphic, reactiveUtils) {
+
+  const PORTAL = "https://floridaswater.maps.arcgis.com";
+  esriConfig.portalUrl = PORTAL;
+
+  // ── OAuth ─────────────────────────────────────────────────
+  esriId.registerOAuthInfos([new OAuthInfo({
+    appId:       "VtzwB4TNvxuvgusS",
+    portalUrl:   PORTAL,
+    popup:       false,
+    redirectUri: "https://alisimpson18.github.io/land-treatments-app/"
+  })]);
+
+  esriId.checkSignInStatus(PORTAL + "/sharing")
+    .then(initApp)
+    .catch(() => esriId.getCredential(PORTAL + "/sharing"));
+
+  function initApp() {
+
+  // ── Config ───────────────────────────────────────────────
+  const TREATMENT_URL = "https://services.arcgis.com/s8wtJX9suxFen6TA/arcgis/rest/services/Land_Treatments_ALL/FeatureServer/2";
+  const MGMT_URL      = "https://services.arcgis.com/s8wtJX9suxFen6TA/arcgis/rest/services/SJRWMD_Management_Area_viewLayer/FeatureServer/0";
+
+  const CAT_COLOR = {
+    Forestry:   "#639922",
+    Fire:       "#E24B4A",
+    Mechanical: "#378ADD",
+    Chemical:   "#7F77DD"
+  };
+
+  const DISPLAY_FIELDS = [
+    "OBJECTID",
+    "TREATMENT_CATEGORY","TREATMENT_TYPE","TREATMENT_DETAIL",
+    "TREATMENT_STATUS","OBJECTIVE",
+    "REGION","MANAGEMENT_AREA",
+    "START_DATE","COMPLETE_DATE","FISCAL_YEAR","ACRES",
+    "TREATED_BY","CONTRACTOR","CONTRACT_NUM","FUND_SOURCE",
+    "TOTAL_COST","COST_PER_ACRE",
+    "SALE_NAME","STAND_ID","SILVICULTURE_TYPE","SPECIES","SITE_PREP_METHOD",
+    "HERB_RX","HERB_APP_DATE","SEEDLING_TYPE","PLANTING_METHOD","PLANTING_DENSITY",
+    "SEED_SOURCE","INITIAL_STOCKING","PERCENT_SURVIVAL",
+    "AUTHORIZATION_NUM","FMU_NUM","BURN_BOSS","CREW","ACRES_BURNED",
+    "CHEMICAL","CHEMICAL_RATE","TARGET_SPECIES","APPLICATION_METHOD",
+    "COMMENTS"
+  ];
+
+  const DETAIL_SECTIONS = [
+    { title: "Treatment",      fields: ["TREATMENT_CATEGORY","TREATMENT_TYPE","TREATMENT_DETAIL","TREATMENT_STATUS","OBJECTIVE"] },
+    { title: "Location",       fields: ["REGION","MANAGEMENT_AREA"] },
+    { title: "Dates & Area",   fields: ["START_DATE","COMPLETE_DATE","FISCAL_YEAR","ACRES"] },
+    { title: "Administration", fields: ["TREATED_BY","CONTRACTOR","CONTRACT_NUM","FUND_SOURCE","TOTAL_COST","COST_PER_ACRE"] },
+    { title: "Forestry",       fields: ["SALE_NAME","STAND_ID","SILVICULTURE_TYPE","SPECIES","SITE_PREP_METHOD","HERB_RX","HERB_APP_DATE","SEEDLING_TYPE","PLANTING_METHOD","PLANTING_DENSITY","SEED_SOURCE","INITIAL_STOCKING","PERCENT_SURVIVAL"] },
+    { title: "Fire",           fields: ["AUTHORIZATION_NUM","FMU_NUM","BURN_BOSS","CREW","ACRES_BURNED"] },
+    { title: "Chemical",       fields: ["CHEMICAL","CHEMICAL_RATE","TARGET_SPECIES","APPLICATION_METHOD"] }
+  ];
+
+  const FIELD_LABEL = {
+    TREATMENT_CATEGORY:"Category", TREATMENT_TYPE:"Type", TREATMENT_DETAIL:"Detail",
+    TREATMENT_STATUS:"Status", OBJECTIVE:"Objective",
+    REGION:"Region", MANAGEMENT_AREA:"Management Area",
+    START_DATE:"Start Date", COMPLETE_DATE:"Complete Date", FISCAL_YEAR:"Fiscal Year", ACRES:"Acres",
+    TREATED_BY:"Treated By", CONTRACTOR:"Contractor", CONTRACT_NUM:"Contract No.",
+    FUND_SOURCE:"Fund Source", TOTAL_COST:"Total Cost", COST_PER_ACRE:"Cost / Acre",
+    SALE_NAME:"Sale Name", STAND_ID:"Stand ID", SILVICULTURE_TYPE:"Silviculture Type",
+    SPECIES:"Species", SITE_PREP_METHOD:"Site Prep Method", HERB_RX:"Herbicide Rx",
+    HERB_APP_DATE:"Herb App Date", SEEDLING_TYPE:"Seedling Type",
+    PLANTING_METHOD:"Planting Method", PLANTING_DENSITY:"Planting Density (TPA)",
+    SEED_SOURCE:"Seed Source", INITIAL_STOCKING:"Initial Stocking", PERCENT_SURVIVAL:"% Survival",
+    AUTHORIZATION_NUM:"Authorization No.", FMU_NUM:"FMU Number",
+    BURN_BOSS:"Burn Boss", CREW:"Crew", ACRES_BURNED:"Acres Burned",
+    CHEMICAL:"Chemical", CHEMICAL_RATE:"Chemical Rate",
+    TARGET_SPECIES:"Target Species", APPLICATION_METHOD:"Application Method"
+  };
+
+  const DATE_FIELDS = new Set(["START_DATE","COMPLETE_DATE","HERB_APP_DATE"]);
+  const CURRENCY_FIELDS = new Set(["TOTAL_COST","COST_PER_ACRE"]);
+  const ACRES_FIELDS = new Set(["ACRES","ACRES_BURNED"]);
+
+  // ── State ────────────────────────────────────────────────
+  let activeCats      = new Set(["Forestry","Fire","Mechanical","Chemical"]);
+  let activeType      = "";
+  let activeYears     = new Set();
+  let activeArea      = "";
+  let activeDetails   = new Set();
+  let clickMode       = false;
+  let hoverOid        = null;
+  let currentFeatures = [];
+  let detailHighlight = null;
+  let treatLV       = null;   // LayerView
+  let selectedOid   = null;
+
+  // ── Layers ───────────────────────────────────────────────
+  function hexToRgba(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255, a];
+  }
+
+  function makeUVI(cat) {
+    const c = CAT_COLOR[cat];
+    return {
+      value: cat,
+      label: cat,
+      symbol: {
+        type: "simple-fill",
+        color: hexToRgba(c, 0.45),
+        outline: { type: "simple-line", color: hexToRgba(c, 0.85), width: 1 }
+      }
+    };
+  }
+
+  const treatmentLayer = new FeatureLayer({
+    url: TREATMENT_URL,
+    outFields: DISPLAY_FIELDS,
+    title: "Land Treatments",
+    renderer: {
+      type: "unique-value",
+      field: "TREATMENT_CATEGORY",
+      uniqueValueInfos: ["Forestry","Fire","Mechanical","Chemical"].map(makeUVI),
+      defaultSymbol: { type: "simple-fill", color: [150,150,150,0.35], outline: { type: "simple-line", color: [100,100,100,0.7], width: 1 } }
+    }
+  });
+
+  const mgmtLayer = new FeatureLayer({
+    url: MGMT_URL,
+    outFields: ["CONSERVATION_AREA","LM_REGION"],
+    title: "Management Areas",
+    renderer: {
+      type: "simple",
+      symbol: {
+        type: "simple-fill",
+        color: [0,0,0,0],
+        outline: { type: "simple-line", color: [90,90,90,0.65], width: 1.5, style: "dash" }
+      }
+    }
+  });
+
+  // ── Map & View ───────────────────────────────────────────
+  const hoverLayer = new GraphicsLayer({ listMode: "hide" });
+  const pinLayer   = new GraphicsLayer({ listMode: "hide" });
+  const map  = new Map({ basemap: "topo-vector", layers: [mgmtLayer, treatmentLayer, hoverLayer, pinLayer] });
+  const view = new MapView({
+    container: "viewDiv",
+    map,
+    zoom: 9,
+    center: [-81.5, 29.2]
+  });
+  view.popup.autoOpenEnabled = false;
+
+  // ── Utilities ────────────────────────────────────────────
+  function buildWhere() {
+    const c = [];
+    if (activeCats.size === 0) return "1=0";
+    if (activeCats.size < 4) {
+      c.push(`TREATMENT_CATEGORY IN (${[...activeCats].map(x => `'${x}'`).join(",")})`);
+    }
+    if (activeType) c.push(`TREATMENT_TYPE = '${activeType.replace(/'/g,"''")}'`);
+    if (activeYears.size > 0) c.push(`FISCAL_YEAR IN (${[...activeYears].map(y => `'${y.replace(/'/g,"''")}'`).join(",")})`);
+    if (activeArea) c.push(`MANAGEMENT_AREA = '${activeArea.replace(/'/g,"''")}'`);
+    if (activeDetails.size > 0) c.push(`TREATMENT_DETAIL IN (${[...activeDetails].map(d => `'${d.replace(/'/g,"''")}'`).join(",")})`);
+    return c.length ? c.join(" AND ") : "1=1";
+  }
+
+  function formatVal(field, val) {
+    if (val === null || val === undefined || val === "") return null;
+    if (DATE_FIELDS.has(field)) {
+      const d = new Date(val);
+      return isNaN(d) ? String(val) : d.toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"});
+    }
+    if (CURRENCY_FIELDS.has(field)) return "$" + Number(val).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+    if (ACRES_FIELDS.has(field))    return Number(val).toLocaleString("en-US",{maximumFractionDigits:1}) + " ac";
+    if (field === "PERCENT_SURVIVAL") return val + "%";
+    return String(val);
+  }
+
+  function esc(s) {
+    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+
+  // ── Results List ─────────────────────────────────────────
+  function renderResults(features) {
+    currentFeatures = features;
+    document.getElementById("export-btn").style.display = features.length ? "inline-block" : "none";
+
+    const list  = document.getElementById("results-list");
+    const count = document.getElementById("results-count");
+    const totalAcres = features.reduce((sum, f) => sum + (f.attributes.ACRES || 0), 0);
+    const acresStr   = totalAcres > 0
+      ? " · " + totalAcres.toLocaleString("en-US", { maximumFractionDigits: 1 }) + " ac total"
+      : "";
+    count.textContent = features.length.toLocaleString() + " treatment" + (features.length !== 1 ? "s" : "") + acresStr;
+
+    if (!features.length) {
+      list.innerHTML = `<div class="empty-msg">No treatments found${clickMode ? " at this location" : " in current view"}.</div>`;
+      return;
+    }
+
+    list.innerHTML = "";
+    features.forEach(f => {
+      const a   = f.attributes;
+      const cat = a.TREATMENT_CATEGORY || "";
+      const div = document.createElement("div");
+      div.className = "result-item" + (a.OBJECTID === selectedOid ? " selected" : "");
+      div.dataset.cat = cat;
+      div.dataset.oid = a.OBJECTID;
+
+      const line2 = [cat, a.TREATMENT_TYPE, a.TREATMENT_DETAIL].filter(Boolean).join(" · ");
+      const acStr = a.ACRES ? Number(a.ACRES).toLocaleString("en-US",{maximumFractionDigits:1}) + " ac" : "";
+      const line3 = [a.FISCAL_YEAR, acStr].filter(Boolean).join(" // ");
+
+      div.innerHTML = `
+        <div class="res-title">${esc(a.MANAGEMENT_AREA || "Unknown Area")}</div>
+        <div class="res-line2">${esc(line2)}</div>
+        <div class="res-line3">${esc(line3)}</div>`;
+
+      div.addEventListener("mouseenter", () => {
+        hoverOid = a.OBJECTID;
+        hoverLayer.removeAll();
+        const q = treatmentLayer.createQuery();
+        q.objectIds     = [a.OBJECTID];
+        q.outFields     = [];
+        q.returnGeometry = true;
+        treatmentLayer.queryFeatures(q).then(res => {
+          if (!res.features.length || hoverOid !== a.OBJECTID) return;
+          hoverLayer.add(new Graphic({
+            geometry: res.features[0].geometry,
+            symbol: {
+              type: "simple-fill",
+              color: [255, 165, 0, 0.15],
+              outline: { type: "simple-line", color: [255, 140, 0, 1], width: 2.5 }
+            }
+          }));
+        }).catch(() => {});
+      });
+      div.addEventListener("mouseleave", () => {
+        hoverOid = null;
+        hoverLayer.removeAll();
+      });
+      div.addEventListener("click", () => openDetail(f));
+      list.appendChild(div);
+    });
+  }
+
+  async function refreshFromExtent() {
+    if (clickMode || !treatLV) return;
+    document.getElementById("results-list").innerHTML = `<div class="empty-msg">Loading…</div>`;
+    try {
+      const q = treatmentLayer.createQuery();
+      q.geometry            = view.extent;
+      q.spatialRelationship = "intersects";
+      q.outFields           = DISPLAY_FIELDS;
+      q.returnGeometry      = false;
+      q.where               = buildWhere();
+      q.orderByFields       = ["FISCAL_YEAR DESC", "COMPLETE_DATE DESC"];
+      q.num                 = 2000;
+      const res = await treatmentLayer.queryFeatures(q);
+      renderResults(res.features);
+    } catch(e) {
+      console.error(e);
+      document.getElementById("results-list").innerHTML = `<div class="empty-msg">Error loading results.</div>`;
+    }
+  }
+
+  // ── Map Click ────────────────────────────────────────────
+  view.on("click", async event => {
+    hoverLayer.removeAll(); hoverOid = null;
+
+    // Drop a pin at the clicked point
+    pinLayer.removeAll();
+    pinLayer.add(new Graphic({
+      geometry: event.mapPoint,
+      symbol: {
+        type: "simple-marker",
+        style: "circle",
+        color: [26, 79, 114, 1],
+        size: 10,
+        outline: { color: [255, 255, 255, 1], width: 2 }
+      }
+    }));
+
+    document.getElementById("results-list").innerHTML = `<div class="empty-msg">Searching…</div>`;
+
+    try {
+      const q = treatmentLayer.createQuery();
+      q.geometry            = event.mapPoint;
+      q.spatialRelationship = "intersects";
+      q.outFields           = DISPLAY_FIELDS;
+      q.returnGeometry      = false;
+      q.where               = buildWhere();
+      q.orderByFields       = ["FISCAL_YEAR DESC", "COMPLETE_DATE DESC"];
+      const res = await treatmentLayer.queryFeatures(q);
+
+      clickMode = true;
+      document.getElementById("click-badge").style.display     = "inline";
+      document.getElementById("clear-click-btn").style.display = "inline";
+
+      renderResults(res.features);
+    } catch(e) { console.error(e); }
+  });
+
+  function clearClick() {
+    clickMode = false;
+    pinLayer.removeAll();
+    document.getElementById("click-badge").style.display     = "none";
+    document.getElementById("clear-click-btn").style.display = "none";
+    refreshFromExtent();
+  }
+  document.getElementById("clear-click-btn").addEventListener("click", clearClick);
+
+  // ── Detail Panel ─────────────────────────────────────────
+  function openDetail(feature) {
+    const a   = feature.attributes;
+    const cat = a.TREATMENT_CATEGORY || "";
+
+    selectedOid = a.OBJECTID;
+    document.querySelectorAll(".result-item").forEach(el =>
+      el.classList.toggle("selected", +el.dataset.oid === selectedOid));
+
+    if (detailHighlight) { detailHighlight.remove(); detailHighlight = null; }
+    if (treatLV) detailHighlight = treatLV.highlight(a.OBJECTID);
+
+    document.getElementById("detail-title").textContent    = a.MANAGEMENT_AREA || "Treatment Detail";
+    document.getElementById("detail-cat-badge").textContent = cat;
+
+    const hdr = document.getElementById("detail-header");
+    hdr.style.borderBottom = `3px solid ${CAT_COLOR[cat] || "#ccc"}`;
+
+    const body = document.getElementById("detail-body");
+    body.innerHTML = "";
+
+    DETAIL_SECTIONS.forEach(sec => {
+      const populated = sec.fields.filter(f => {
+        const v = a[f];
+        return v !== null && v !== undefined && v !== "";
+      });
+      if (!populated.length) return;
+
+      const secEl = document.createElement("div");
+      secEl.className = "detail-section";
+      secEl.innerHTML = `<div class="detail-section-title">${esc(sec.title)}</div>`;
+
+      populated.forEach(field => {
+        const fv = formatVal(field, a[field]);
+        if (!fv) return;
+        const row = document.createElement("div");
+        row.className = "detail-row";
+        row.innerHTML = `<span class="detail-label">${esc(FIELD_LABEL[field] || field)}</span><span class="detail-value">${esc(fv)}</span>`;
+        secEl.appendChild(row);
+      });
+
+      body.appendChild(secEl);
+    });
+
+    if (a.COMMENTS) {
+      const secEl = document.createElement("div");
+      secEl.className = "detail-section";
+      secEl.innerHTML = `<div class="detail-section-title">Comments</div><div class="detail-comments">${esc(a.COMMENTS)}</div>`;
+      body.appendChild(secEl);
+    }
+
+    document.getElementById("detail-pane").classList.add("open");
+  }
+
+  function closeDetail() {
+    document.getElementById("detail-pane").classList.remove("open");
+    selectedOid = null;
+    document.querySelectorAll(".result-item").forEach(el => el.classList.remove("selected"));
+    if (detailHighlight) { detailHighlight.remove(); detailHighlight = null; }
+  }
+  document.getElementById("back-btn").addEventListener("click", closeDetail);
+
+  // ── Filters ──────────────────────────────────────────────
+  document.querySelectorAll(".cat-pill").forEach(pill => {
+    pill.addEventListener("click", () => {
+      const cat = pill.dataset.cat;
+      if (activeCats.has(cat)) { activeCats.delete(cat); pill.classList.remove("active"); }
+      else                      { activeCats.add(cat);    pill.classList.add("active"); }
+      applyFilters();
+    });
+  });
+
+  ["type-select","area-select"].forEach(id => {
+    document.getElementById(id).addEventListener("change", e => {
+      if (id === "type-select") activeType = e.target.value;
+      if (id === "area-select") {
+        activeArea = e.target.value;
+        if (activeArea) zoomToManagementArea(activeArea);
+      }
+      applyFilters();
+    });
+  });
+
+  function updateYearBtn() {
+    const btn = document.getElementById("year-ms-btn");
+    if (activeYears.size === 0) {
+      btn.textContent = "All Years";
+      btn.classList.remove("active");
+    } else if (activeYears.size === 1) {
+      btn.textContent = [...activeYears][0];
+      btn.classList.add("active");
+    } else {
+      btn.textContent = activeYears.size + " years selected";
+      btn.classList.add("active");
+    }
+  }
+
+  document.getElementById("year-ms-btn").addEventListener("click", e => {
+    e.stopPropagation();
+    document.getElementById("detail-ms-dropdown").classList.remove("open");
+    document.getElementById("year-ms-dropdown").classList.toggle("open");
+  });
+
+  document.getElementById("detail-ms-btn").addEventListener("click", e => {
+    e.stopPropagation();
+    document.getElementById("year-ms-dropdown").classList.remove("open");
+    document.getElementById("detail-ms-dropdown").classList.toggle("open");
+  });
+
+  document.addEventListener("click", e => {
+    if (!e.target.closest("#year-multiselect"))   document.getElementById("year-ms-dropdown").classList.remove("open");
+    if (!e.target.closest("#detail-multiselect")) document.getElementById("detail-ms-dropdown").classList.remove("open");
+  });
+
+  function updateDetailBtn() {
+    const btn = document.getElementById("detail-ms-btn");
+    if (activeDetails.size === 0) {
+      btn.textContent = "All Treatment Details";
+      btn.classList.remove("active");
+    } else if (activeDetails.size === 1) {
+      btn.textContent = [...activeDetails][0];
+      btn.classList.add("active");
+    } else {
+      btn.textContent = activeDetails.size + " details selected";
+      btn.classList.add("active");
+    }
+  }
+
+  async function refreshDetailOptions() {
+    try {
+      // Build WHERE without the detail filter so options stay context-aware
+      const c = [];
+      if (activeCats.size === 0) {
+        document.getElementById("detail-ms-dropdown").innerHTML =
+          `<div class="ms-option" style="color:#aaa;cursor:default;font-style:italic">No options available</div>`;
+        activeDetails.clear();
+        updateDetailBtn();
+        return;
+      }
+      if (activeCats.size < 4) c.push(`TREATMENT_CATEGORY IN (${[...activeCats].map(x => `'${x}'`).join(",")})`);
+      if (activeType) c.push(`TREATMENT_TYPE = '${activeType.replace(/'/g,"''")}'`);
+      if (activeYears.size > 0) c.push(`FISCAL_YEAR IN (${[...activeYears].map(y => `'${y.replace(/'/g,"''")}'`).join(",")})`);
+      if (activeArea) c.push(`MANAGEMENT_AREA = '${activeArea.replace(/'/g,"''")}'`);
+
+      const q = treatmentLayer.createQuery();
+      q.where          = c.length ? c.join(" AND ") : "1=1";
+      q.outFields      = ["TREATMENT_DETAIL"];
+      q.returnGeometry = false;
+      q.num            = 5000;
+
+      const res     = await treatmentLayer.queryFeatures(q);
+      const details = [...new Set(res.features.map(f => f.attributes.TREATMENT_DETAIL).filter(Boolean))].sort();
+
+      // Drop any selected details that no longer exist in the new context
+      activeDetails = new Set([...activeDetails].filter(d => details.includes(d)));
+
+      const dropdown = document.getElementById("detail-ms-dropdown");
+      dropdown.innerHTML = "";
+
+      if (!details.length) {
+        dropdown.innerHTML = `<div class="ms-option" style="color:#aaa;cursor:default;font-style:italic">No options available</div>`;
+        updateDetailBtn();
+        return;
+      }
+
+      details.forEach(d => {
+        const div = document.createElement("div");
+        div.className = "ms-option";
+        div.innerHTML = `<input type="checkbox" value="${esc(d)}"${activeDetails.has(d) ? " checked" : ""}> ${esc(d)}`;
+        div.querySelector("input").addEventListener("change", e => {
+          if (e.target.checked) activeDetails.add(d);
+          else activeDetails.delete(d);
+          updateDetailBtn();
+          applyFilters();
+        });
+        dropdown.appendChild(div);
+      });
+
+      updateDetailBtn();
+    } catch(e) { console.warn("Detail options error:", e); }
+  }
+
+  async function zoomToManagementArea(name) {
+    try {
+      const q = mgmtLayer.createQuery();
+      q.where          = `CONSERVATION_AREA = '${name.replace(/'/g,"''")}'`;
+      q.outFields      = ["CONSERVATION_AREA"];
+      q.returnGeometry = true;
+      const res = await mgmtLayer.queryFeatures(q);
+      if (!res.features.length) return;
+      const ext = res.features.reduce((acc, f) => acc ? acc.union(f.geometry.extent) : f.geometry.extent, null);
+      if (ext) view.goTo(ext.expand(1.15));
+    } catch(e) { console.warn("Zoom to area error:", e); }
+  }
+
+  document.getElementById("clear-filters-btn").addEventListener("click", () => {
+    activeCats = new Set(["Forestry","Fire","Mechanical","Chemical"]);
+    document.querySelectorAll(".cat-pill").forEach(p => p.classList.add("active"));
+    activeType = ""; activeYears = new Set(); activeArea = ""; activeDetails = new Set();
+    document.getElementById("type-select").value = "";
+    document.getElementById("area-select").value = "";
+    document.querySelectorAll("#year-ms-dropdown input[type=checkbox]").forEach(cb => cb.checked = false);
+    updateYearBtn();
+    document.querySelectorAll("#detail-ms-dropdown input[type=checkbox]").forEach(cb => cb.checked = false);
+    updateDetailBtn();
+    applyFilters();
+  });
+
+  function applyFilters() {
+    treatmentLayer.definitionExpression = buildWhere();
+    refreshTypeOptions();
+    refreshDetailOptions();
+    if (clickMode) clearClick();
+    else refreshFromExtent();
+  }
+
+  async function refreshTypeOptions() {
+    try {
+      const c = [];
+      if (activeCats.size === 0) {
+        const sel = document.getElementById("type-select");
+        sel.innerHTML = '<option value="">All Types</option>';
+        activeType = "";
+        return;
+      }
+      if (activeCats.size < 4) c.push(`TREATMENT_CATEGORY IN (${[...activeCats].map(x => `'${x}'`).join(",")})`);
+
+      const q = treatmentLayer.createQuery();
+      q.where          = c.length ? c.join(" AND ") : "1=1";
+      q.outFields      = ["TREATMENT_TYPE"];
+      q.returnGeometry = false;
+      q.num            = 5000;
+
+      const res   = await treatmentLayer.queryFeatures(q);
+      const types = [...new Set(res.features.map(f => f.attributes.TREATMENT_TYPE).filter(Boolean))].sort();
+
+      // If the selected type is no longer valid for the active categories, reset it
+      if (activeType && !types.includes(activeType)) activeType = "";
+
+      const sel = document.getElementById("type-select");
+      sel.innerHTML = '<option value="">All Types</option>';
+      types.forEach(t => {
+        const o = document.createElement("option");
+        o.value = o.textContent = t;
+        if (t === activeType) o.selected = true;
+        sel.appendChild(o);
+      });
+    } catch(e) { console.warn("Type options error:", e); }
+  }
+
+  // ── Export ───────────────────────────────────────────────
+  const EXPORT_SECTIONS = [
+    ...DETAIL_SECTIONS,
+    { title: "Comments", fields: ["COMMENTS"] }
+  ];
+
+  function showExportModal() {
+    if (!currentFeatures.length) return;
+
+    // Find which fields have at least one non-null value in current results
+    const populated = new Set();
+    currentFeatures.forEach(f => {
+      EXPORT_SECTIONS.forEach(sec => {
+        sec.fields.forEach(field => {
+          const v = f.attributes[field];
+          if (v !== null && v !== undefined && v !== "") populated.add(field);
+        });
+      });
+    });
+
+    // Build field checklist
+    const listEl = document.getElementById("export-fields-list");
+    listEl.innerHTML = "";
+    EXPORT_SECTIONS.forEach(sec => {
+      const groupEl = document.createElement("div");
+      groupEl.className = "export-group";
+      groupEl.innerHTML = `<div class="export-group-title">${esc(sec.title)}</div>`;
+      const gridEl = document.createElement("div");
+      gridEl.className = "export-fields-grid";
+      sec.fields.forEach(field => {
+        const hasData = populated.has(field);
+        const lbl = document.createElement("label");
+        lbl.className = "export-field-label" + (hasData ? "" : " empty");
+        lbl.innerHTML = `<input type="checkbox" value="${field}"${hasData ? " checked" : ""}> ${esc(FIELD_LABEL[field] || field)}`;
+        gridEl.appendChild(lbl);
+      });
+      groupEl.appendChild(gridEl);
+      listEl.appendChild(groupEl);
+    });
+
+    document.getElementById("export-modal-title").textContent =
+      `Export ${currentFeatures.length.toLocaleString()} treatment${currentFeatures.length !== 1 ? "s" : ""}`;
+    document.getElementById("export-overlay").classList.add("open");
+  }
+
+  function hideExportModal() {
+    document.getElementById("export-overlay").classList.remove("open");
+  }
+
+  function doExport() {
+    const selectedFields = [...document.querySelectorAll("#export-fields-list input[type=checkbox]:checked")]
+      .map(cb => cb.value);
+    if (!selectedFields.length) return;
+
+    const fmt     = document.querySelector("input[name=export-fmt]:checked").value;
+    const headers = selectedFields.map(f => FIELD_LABEL[f] || f);
+    const rows    = currentFeatures.map(f =>
+      selectedFields.map(field => {
+        const raw = f.attributes[field];
+        if (raw === null || raw === undefined || raw === "") return "";
+        if (DATE_FIELDS.has(field)) {
+          const d = new Date(raw);
+          return isNaN(d) ? String(raw) : d.toLocaleDateString("en-US", { year:"numeric", month:"2-digit", day:"2-digit" });
+        }
+        return raw;
+      })
+    );
+
+    const filename = "land_treatments_" + new Date().toISOString().slice(0, 10);
+
+    if (fmt === "csv") {
+      const csvContent = [headers, ...rows].map(row =>
+        row.map(v => {
+          const s = String(v === null || v === undefined ? "" : v);
+          return (s.includes(",") || s.includes('"') || s.includes("\n"))
+            ? '"' + s.replace(/"/g, '""') + '"'
+            : s;
+        }).join(",")
+      ).join("\n");
+      const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+      triggerDownload(blob, filename + ".csv");
+    } else {
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      XLSX.utils.book_append_sheet(wb, ws, "Treatments");
+      XLSX.writeFile(wb, filename + ".xlsx");
+    }
+
+    hideExportModal();
+  }
+
+  function triggerDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement("a");
+    a.href     = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  document.getElementById("export-btn").addEventListener("click", showExportModal);
+  document.getElementById("export-close-btn").addEventListener("click", hideExportModal);
+  document.getElementById("export-cancel-btn").addEventListener("click", hideExportModal);
+  document.getElementById("export-do-btn").addEventListener("click", doExport);
+  document.getElementById("export-overlay").addEventListener("click", e => {
+    if (e.target === document.getElementById("export-overlay")) hideExportModal();
+  });
+  document.getElementById("export-select-all").addEventListener("click", () => {
+    document.querySelectorAll("#export-fields-list input[type=checkbox]").forEach(cb => cb.checked = true);
+  });
+  document.getElementById("export-select-none").addEventListener("click", () => {
+    document.querySelectorAll("#export-fields-list input[type=checkbox]").forEach(cb => cb.checked = false);
+  });
+
+  // ── Bootstrap ─────────────────────────────────────────────
+  async function loadFilterOptions() {
+    try {
+      const q = treatmentLayer.createQuery();
+      q.where          = "1=1";
+      q.outFields      = ["FISCAL_YEAR","MANAGEMENT_AREA"];
+      q.returnGeometry = false;
+      q.num            = 5000;
+      const res = await treatmentLayer.queryFeatures(q);
+      const attrs = res.features.map(f => f.attributes);
+
+      const years = [...new Set(attrs.map(a => a.FISCAL_YEAR).filter(Boolean))].sort().reverse();
+      const areas = [...new Set(attrs.map(a => a.MANAGEMENT_AREA).filter(Boolean))].sort();
+
+      const addOpts = (id, vals) => {
+        const sel = document.getElementById(id);
+        vals.forEach(v => { const o = document.createElement("option"); o.value = o.textContent = v; sel.appendChild(o); });
+      };
+      addOpts("area-select", areas);
+
+      const yearDropdown = document.getElementById("year-ms-dropdown");
+      years.forEach(y => {
+        const div = document.createElement("div");
+        div.className = "ms-option";
+        div.innerHTML = `<input type="checkbox" value="${esc(y)}"> ${esc(y)}`;
+        div.querySelector("input").addEventListener("change", e => {
+          if (e.target.checked) activeYears.add(y);
+          else activeYears.delete(y);
+          updateYearBtn();
+          applyFilters();
+        });
+        yearDropdown.appendChild(div);
+      });
+    } catch(e) { console.warn("Filter load error:", e); }
+  }
+
+  async function loadTotalCount() {
+    try {
+      const q = treatmentLayer.createQuery();
+      q.where = "1=1";
+      const count = await treatmentLayer.queryFeatureCount(q);
+      document.getElementById("total-count").textContent = count.toLocaleString();
+    } catch(e) { console.warn("Count load error:", e); }
+  }
+
+  view.when(async () => {
+    treatLV = await view.whenLayerView(treatmentLayer);
+
+    reactiveUtils.watch(
+      () => view.stationary,
+      stationary => { if (stationary && !clickMode) refreshFromExtent(); }
+    );
+
+    await Promise.all([loadFilterOptions(), loadTotalCount()]);
+    await Promise.all([refreshTypeOptions(), refreshDetailOptions()]);
+    refreshFromExtent();
+
+    // Fade map tip after 6 s
+    setTimeout(() => {
+      const tip = document.getElementById("map-tip");
+      if (tip) { tip.style.opacity = "0"; setTimeout(() => tip.remove(), 700); }
+    }, 6000);
+  });
+
+  } // end initApp
+
+}); // end require
+</script>
+</body>
+</html>
