@@ -1246,9 +1246,17 @@ require([
       ["Budget Center",          a.BDGT_CNTR]
     ]);
 
+    // Surface types — only show populated slots
+    const surfRows = [];
+    [1,2,3,4].forEach(n => {
+      const v = a[`SURF${n}`];
+      if (v) surfRows.push([`Surface ${n}`, v]);
+    });
+    if (surfRows.length) addSection("Surface", surfRows);
+
     // Herbicides — only show populated slots
     const herbRows = [];
-    [[1],[2],[3],[4]].forEach(([n]) => {
+    [1,2,3,4].forEach(n => {
       const name = a[`HRBCID${n}`], amt = a[`HRBCID${n}_AMT`], uom = a[`HRBCID${n}_UOM`], cst = a[`HRBCID${n}_CST`];
       if (!name && !amt) return;
       const detail = [name, amt && uom ? `${amt} ${uom}` : amt, cst ? "$" + Number(cst).toLocaleString() : ""].filter(Boolean).join(" · ");
@@ -1257,14 +1265,19 @@ require([
     if (herbRows.length) addSection("Herbicides", herbRows);
 
     addSection("Cost", [
-      ["Total Cost", a.TOTL_CST != null ? "$" + Number(a.TOTL_CST).toLocaleString() : ""]
+      ["Total Cost",     a.TOTL_CST  != null ? "$" + Number(a.TOTL_CST).toLocaleString()  : ""],
+      ["Chemical Cost",  a.CMCL_CST  != null ? "$" + Number(a.CMCL_CST).toLocaleString()  : ""]
     ]);
 
-    const comments = [a.CMMT, a.CMMT_1].filter(Boolean).join(" / ");
-    addSection("Notes", [
-      ["Weather",  a.WTHR],
-      ["Comments", comments]
-    ]);
+    if (a.WTHR) addSection("Weather", [["Conditions", a.WTHR]]);
+
+    const cmmt = [a.CMMT, a.CMMT_1].filter(Boolean).join(" / ");
+    if (cmmt) {
+      const secEl = document.createElement("div");
+      secEl.className = "detail-section";
+      secEl.innerHTML = `<div class="detail-section-title">Comments</div><div class="detail-comments">${esc(cmmt)}</div>`;
+      body.appendChild(secEl);
+    }
 
     document.getElementById("detail-pane").classList.add("open");
   }
@@ -1672,13 +1685,23 @@ require([
   // ── Invasive Filters ──────────────────────────────────────
   async function loadInvasiveFilterOptions() {
     try {
+      const makeDistinctQ = (layer, field) => {
+        const q = layer.createQuery();
+        q.where = `${field} IS NOT NULL`;
+        q.outFields = [field];
+        q.returnGeometry = false;
+        q.returnDistinctValues = true;
+        q.orderByFields = [field];
+        return layer.queryFeatures(q);
+      };
+
       const [speciesRes, yearRes] = await Promise.all([
-        invPopLayer.queryFeatures(Object.assign(invPopLayer.createQuery(), { where: "1=1", outFields: ["SPCS"], returnGeometry: false, num: 2000 })),
-        invWorkLayer.queryFeatures(Object.assign(invWorkLayer.createQuery(), { where: "1=1", outFields: ["FSCL_YR"], returnGeometry: false, num: 5000 }))
+        makeDistinctQ(invPopLayer, "SPCS"),
+        makeDistinctQ(invWorkLayer, "FSCL_YR")
       ]);
 
-      const species = [...new Set(speciesRes.features.map(f => f.attributes.SPCS).filter(Boolean))].sort();
-      const years   = [...new Set(yearRes.features.map(f => f.attributes.FSCL_YR).filter(Boolean))].sort().reverse();
+      const species = speciesRes.features.map(f => f.attributes.SPCS).filter(Boolean).sort();
+      const years   = yearRes.features.map(f => f.attributes.FSCL_YR).filter(Boolean).sort().reverse();
 
       const specSel = document.getElementById("inv-species-select");
       species.forEach(s => { const o = document.createElement("option"); o.value = o.textContent = s; specSel.appendChild(o); });
