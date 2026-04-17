@@ -873,9 +873,10 @@ require([
         const spcs  = a._speciesName || a.SPCS || "";
         const acStr = a.ACRS ? Number(a.ACRS).toLocaleString("en-US",{maximumFractionDigits:1}) + " ac" : "";
         const dtStr = a.DT ? new Date(a.DT).toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"}) : "";
+        const herbStr = [a.HRBCID1, a.HRBCID2, a.HRBCID3].filter(Boolean).join(", ");
         div.innerHTML = `
           <div class="res-title">${esc(a.MGT_AREA || spcs || "Invasive Treatment")}<span class="invasive-tag">Invasive Plant</span></div>
-          <div class="res-line2">${esc(spcs)}${a.TRTMNT_MTHD ? " · " + esc(a.TRTMNT_MTHD) : ""}</div>
+          <div class="res-line2">${esc(spcs)}${a.TRTMNT_MTHD ? " · " + esc(a.TRTMNT_MTHD) : ""}${herbStr ? " · " + esc(herbStr) : ""}</div>
           <div class="res-line3">${[dtStr, acStr].filter(Boolean).join(" // ")}</div>`;
         div.addEventListener("mouseenter", () => {
           hoverOid = itemKey;
@@ -937,32 +938,89 @@ require([
       q.orderByFields       = ["FISCAL_YEAR DESC", "COMPLETE_DATE DESC"];
       q.num                 = 2000;
 
-      const queries = [treatmentLayer.queryFeatures(q)];
+      const lmRes = await treatmentLayer.queryFeatures(q);
+      const lmFeatures = lmRes.features;
 
+      let invFeatures = [];
       if (showInvasive) {
-        for (const [layer, type] of [[invLineLayer, "line"], [invAreaLayer, "area"]]) {
+        // Fetch geometry from both layers in parallel
+        const makeInvQ = (layer) => {
           const iq = layer.createQuery();
-          iq.geometry            = view.extent;
-          iq.spatialRelationship = "intersects";
-          iq.outFields           = ["*"];
-          iq.returnGeometry      = true;
-          iq.num                 = 1000;
-          queries.push(
-            layer.queryFeatures(iq).then(res => res.features.map(f => ({
-              attributes:      f.attributes,
-              geometry:        f.geometry,
-              _invasive:       true,
-              _layerType:      type,
-              _sourceLayer:    layer,
-              _needsChainQuery: true
-            }))).catch(() => [])
-          );
+          iq.geometry = view.extent; iq.spatialRelationship = "intersects";
+          iq.outFields = ["*"]; iq.returnGeometry = true; iq.num = 500;
+          return layer.queryFeatures(iq).catch(() => ({ features: [] }));
+        };
+        const [lineRes, areaRes] = await Promise.all([makeInvQ(invLineLayer), makeInvQ(invAreaLayer)]);
+        const rawGeo = [
+          ...lineRes.features.map(f => ({ f, type: "line" })),
+          ...areaRes.features.map(f => ({ f, type: "area" }))
+        ];
+
+        if (rawGeo.length) {
+          // Batch: Work Summary
+          const eodIds = [...new Set(rawGeo.map(({ f }) => f.attributes.IP_EOD_ID).filter(Boolean))];
+          const workMap = {};
+          if (eodIds.length) {
+            try {
+              const wq = invWorkLayer.createQuery();
+              wq.where = `IP_EOD_ID IN (${eodIds.map(id => `'${String(id).replace(/'/g,"''")}'`).join(",")})`;
+              wq.outFields = ["*"]; wq.returnGeometry = false;
+              const wRes = await invWorkLayer.queryFeatures(wq);
+              wRes.features.forEach(f => { workMap[f.attributes.IP_EOD_ID] = f.attributes; });
+            } catch(e) {}
+          }
+
+          // Batch: Population (try via POP_GUID)
+          const normGuid = g => { let s=String(g).trim(); if(!s.startsWith("{"))s="{"+s; if(!s.endsWith("}"))s+="}"; return s; };
+          const popMap = {};
+          const pgGuids = [...new Set(Object.values(workMap).map(w => w.POP_GUID).filter(Boolean))];
+          if (pgGuids.length) {
+            try {
+              const ng = pgGuids.map(normGuid);
+              const pq = invPopLayer.createQuery();
+              pq.where = `GLOBALID IN (${ng.map(g=>`'${g}'`).join(",")})`;
+              pq.outFields = ["*"]; pq.returnGeometry = false;
+              const pRes = await invPopLayer.queryFeatures(pq);
+              pRes.features.forEach(f => { popMap[normGuid(f.attributes.GLOBALID)] = f.attributes; });
+            } catch(e) {}
+          }
+
+          // Fallback batch: try geometry.SPCS as Population GLOBALID
+          if (!Object.keys(popMap).length) {
+            const spcsGuids = [...new Set(rawGeo.map(({ f }) => f.attributes.SPCS).filter(Boolean))];
+            if (spcsGuids.length) {
+              try {
+                const ng = spcsGuids.map(normGuid);
+                const pq2 = invPopLayer.createQuery();
+                pq2.where = `GLOBALID IN (${ng.map(g=>`'${g}'`).join(",")})`;
+                pq2.outFields = ["*"]; pq2.returnGeometry = false;
+                const pRes2 = await invPopLayer.queryFeatures(pq2);
+                pRes2.features.forEach(f => { popMap[normGuid(f.attributes.GLOBALID)] = f.attributes; });
+              } catch(e) {}
+            }
+          }
+
+          // Assemble invasive features with full chain data
+          rawGeo.forEach(({ f: geoFeat, type }) => {
+            const workAttrs = workMap[geoFeat.attributes.IP_EOD_ID] || {};
+            let popAttrs = {};
+            if (workAttrs.POP_GUID) popAttrs = popMap[normGuid(workAttrs.POP_GUID)] || {};
+            if (!popAttrs.SPCS && geoFeat.attributes.SPCS) {
+              const fb = popMap[normGuid(geoFeat.attributes.SPCS)];
+              if (fb && fb.SPCS) popAttrs = fb;
+            }
+            invFeatures.push({
+              attributes: { ...geoFeat.attributes, ...workAttrs, ...popAttrs, _speciesName: popAttrs.SPCS || null },
+              geometry: geoFeat.geometry,
+              _invasive: true, _layerType: type, _needsChainQuery: false
+            });
+          });
+
+          // Sort invasives by DT descending
+          invFeatures.sort((a, b) => (b.attributes.DT || 0) - (a.attributes.DT || 0));
         }
       }
 
-      const results = await Promise.all(queries);
-      const lmFeatures  = results[0].features;
-      const invFeatures = showInvasive ? [...(results[1] || []), ...(results[2] || [])] : [];
       renderResults([...lmFeatures, ...invFeatures]);
     } catch(e) {
       console.error(e);
@@ -1000,13 +1058,14 @@ require([
 
       const [lmRes, invasiveFeats] = await Promise.all([
         treatmentLayer.queryFeatures(q),
-        showInvasive ? queryInvasiveAtPoint(event.mapPoint) : Promise.resolve([])
+        showInvasive ? queryInvasiveAtPoint(event.mapPoint, view.resolution * 8) : Promise.resolve([])
       ]);
 
       clickMode = true;
       document.getElementById("click-badge").style.display     = "inline";
       document.getElementById("clear-click-btn").style.display = "inline";
 
+      invasiveFeats.sort((a, b) => (b.attributes.DT || 0) - (a.attributes.DT || 0));
       renderResults([...lmRes.features, ...invasiveFeats]);
     } catch(e) { console.error(e); }
   });
@@ -1379,13 +1438,20 @@ require([
     applyFilters();
   });
 
-  async function queryInvasiveAtPoint(point) {
+  async function queryInvasiveAtPoint(point, bufferMeters = 0) {
+    const bufGeom = bufferMeters > 0 ? {
+      type: "extent",
+      xmin: point.x - bufferMeters, xmax: point.x + bufferMeters,
+      ymin: point.y - bufferMeters, ymax: point.y + bufferMeters,
+      spatialReference: point.spatialReference
+    } : point;
+
     const results = [];
     for (const [layer, type] of [[invLineLayer, "line"], [invAreaLayer, "area"]]) {
       let geoRes;
       try {
         const q = layer.createQuery();
-        q.geometry            = point;
+        q.geometry            = type === "line" ? bufGeom : point;
         q.spatialRelationship = "intersects";
         q.outFields           = ["*"];
         q.returnGeometry      = true;
@@ -1619,6 +1685,19 @@ require([
 
       const yrSel = document.getElementById("inv-year-select");
       years.forEach(y => { const o = document.createElement("option"); o.value = o.textContent = y; yrSel.appendChild(o); });
+
+      // Default to most recent fiscal year
+      if (years.length) {
+        activeInvYear = years[0];
+        yrSel.value = years[0];
+        const parts = years[0].split("-");
+        const startYr = parseInt(parts[0]);
+        if (!isNaN(startYr)) {
+          const where = `DT >= DATE '${startYr}-10-01' AND DT < DATE '${startYr + 1}-10-01'`;
+          invLineLayer.definitionExpression = where;
+          invAreaLayer.definitionExpression = where;
+        }
+      }
     } catch(e) { console.warn("Invasive filter load error:", e); }
   }
 
