@@ -1016,7 +1016,7 @@ require([
               if (fb && fb.SPCS) popAttrs = fb;
             }
             invFeatures.push({
-              attributes: { ...geoFeat.attributes, ...workAttrs, ...popAttrs, _speciesName: popAttrs.SPCS || null, _workDT: workAttrs.DT != null ? workAttrs.DT : null },
+              attributes: { ...geoFeat.attributes, ...workAttrs, ...popAttrs, _speciesName: popAttrs.SPCS || null, _workDT: workAttrs.DT != null ? workAttrs.DT : null, _geoOid: geoFeat.attributes.OBJECTID },
               geometry: geoFeat.geometry,
               _invasive: true, _layerType: type, _needsChainQuery: false
             });
@@ -1180,7 +1180,7 @@ require([
           }
         } catch(e) {}
       }
-      const merged = { ...feature.attributes, ...workAttrs, ...popAttrs, _speciesName: popAttrs.SPCS || null, _workDT: workAttrs.DT != null ? workAttrs.DT : null };
+      const merged = { ...feature.attributes, ...workAttrs, ...popAttrs, _speciesName: popAttrs.SPCS || null, _workDT: workAttrs.DT != null ? workAttrs.DT : null, _geoOid: feature.attributes._geoOid ?? feature.attributes.OBJECTID };
       feature = { ...feature, attributes: merged, _needsChainQuery: false };
     }
 
@@ -1194,7 +1194,7 @@ require([
 
     if (detailHighlight) { detailHighlight.remove(); detailHighlight = null; }
     const invLV = feature._layerType === "line" ? invLineLV : invAreaLV;
-    if (invLV) detailHighlight = invLV.highlight(a.OBJECTID);
+    if (invLV) detailHighlight = invLV.highlight(a._geoOid);
 
     if (feature.geometry) {
       const ext = feature.geometry.extent || feature.geometry.clone().extent;
@@ -1256,9 +1256,9 @@ require([
     // Mix — herbicides and surfactants combined
     const mixRows = [];
     [1,2,3,4].forEach(n => {
-      const name = a[`HRBCID${n}`], amt = a[`HRBCID${n}_AMT`], uom = a[`HRBCID${n}_UOM`], cst = a[`HRBCID${n}_CST`];
+      const name = a[`HRBCID${n}`], amt = a[`HRBCID${n}_AMT`], uom = a[`HRBCID${n}_UOM`];
       if (!name && !amt) return;
-      const detail = [name, amt && uom ? `${amt} ${uom}` : amt, cst ? "$" + Number(cst).toLocaleString() : ""].filter(Boolean).join(" · ");
+      const detail = [name, amt && uom ? `${amt} ${uom}` : amt].filter(Boolean).join(" · ");
       mixRows.push([`Herbicide ${n}`, detail]);
     });
     [1,2,3,4].forEach(n => {
@@ -1523,7 +1523,8 @@ require([
           attributes: {
             ...geoFeat.attributes, ...workAttrs, ...popAttrs,
             _speciesName: popAttrs.SPCS || null,
-            _workDT: workAttrs.DT != null ? workAttrs.DT : null
+            _workDT: workAttrs.DT != null ? workAttrs.DT : null,
+            _geoOid: geoFeat.attributes.OBJECTID
           },
           geometry:     geoFeat.geometry,
           _invasive:    true,
