@@ -102,6 +102,11 @@
     .cat-pill[data-cat="Chemical"]   .pill-dot { background: #7F77DD; }
     .cat-pill[data-cat="Chemical"].active   .pill-dot { background: white; }
 
+    .cat-pill[data-cat="Invasive"]   { border-color: #E8871A; color: #E8871A; }
+    .cat-pill[data-cat="Invasive"].active   { background: #E8871A; color: white; }
+    .cat-pill[data-cat="Invasive"]   .pill-dot { background: #E8871A; }
+    .cat-pill[data-cat="Invasive"].active   .pill-dot { background: white; }
+
     .dropdowns-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -514,6 +519,7 @@
       <div class="cat-pill active" data-cat="Fire"><span class="pill-dot"></span>Fire</div>
       <div class="cat-pill active" data-cat="Mechanical"><span class="pill-dot"></span>Mechanical</div>
       <div class="cat-pill active" data-cat="Chemical"><span class="pill-dot"></span>Chemical</div>
+      <div class="cat-pill active" data-cat="Invasive"><span class="pill-dot"></span>Invasive</div>
     </div>
     <div class="dropdowns-grid">
       <select id="area-select"  class="filter-select full-col"><option value="">All Management Areas</option></select>
@@ -679,6 +685,7 @@ require([
 
   // ── State ────────────────────────────────────────────────
   let activeCats      = new Set(["Forestry","Fire","Mechanical","Chemical"]);
+  let showInvasive    = true;
   let activeType      = "";
   let activeYears     = new Set();
   let activeArea      = "";
@@ -913,8 +920,34 @@ require([
       q.where               = buildWhere();
       q.orderByFields       = ["FISCAL_YEAR DESC", "COMPLETE_DATE DESC"];
       q.num                 = 2000;
-      const res = await treatmentLayer.queryFeatures(q);
-      renderResults(res.features);
+
+      const queries = [treatmentLayer.queryFeatures(q)];
+
+      if (showInvasive) {
+        for (const [layer, type] of [[invLineLayer, "line"], [invAreaLayer, "area"]]) {
+          const iq = layer.createQuery();
+          iq.geometry            = view.extent;
+          iq.spatialRelationship = "intersects";
+          iq.outFields           = ["*"];
+          iq.returnGeometry      = true;
+          iq.num                 = 1000;
+          queries.push(
+            layer.queryFeatures(iq).then(res => res.features.map(f => ({
+              attributes:      f.attributes,
+              geometry:        f.geometry,
+              _invasive:       true,
+              _layerType:      type,
+              _sourceLayer:    layer,
+              _needsChainQuery: true
+            }))).catch(() => [])
+          );
+        }
+      }
+
+      const results = await Promise.all(queries);
+      const lmFeatures  = results[0].features;
+      const invFeatures = showInvasive ? [...(results[1] || []), ...(results[2] || [])] : [];
+      renderResults([...lmFeatures, ...invFeatures]);
     } catch(e) {
       console.error(e);
       document.getElementById("results-list").innerHTML = `<div class="empty-msg">Error loading results.</div>`;
@@ -951,7 +984,7 @@ require([
 
       const [lmRes, invasiveFeats] = await Promise.all([
         treatmentLayer.queryFeatures(q),
-        queryInvasiveAtPoint(event.mapPoint)
+        showInvasive ? queryInvasiveAtPoint(event.mapPoint) : Promise.resolve([])
       ]);
 
       clickMode = true;
@@ -1033,7 +1066,34 @@ require([
     document.getElementById("detail-pane").classList.add("open");
   }
 
-  function openInvasiveDetail(feature) {
+  async function openInvasiveDetail(feature) {
+    // If from extent mode, do the chain query now before displaying
+    if (feature._needsChainQuery) {
+      const eodId = feature.attributes.IP_EOD_ID;
+      let workAttrs = {}, popAttrs = {};
+      if (eodId) {
+        try {
+          const wq = invWorkLayer.createQuery();
+          wq.where = `IP_EOD_ID = '${String(eodId).replace(/'/g,"''")}'`;
+          wq.outFields = ["*"]; wq.returnGeometry = false;
+          const wRes = await invWorkLayer.queryFeatures(wq);
+          if (wRes.features.length) {
+            workAttrs = wRes.features[0].attributes;
+            let g = String(workAttrs.POP_GUID || "").trim();
+            if (g) {
+              if (!g.startsWith("{")) g = "{" + g;
+              if (!g.endsWith("}"))   g = g + "}";
+              const pq = invPopLayer.createQuery();
+              pq.where = `GLOBALID = '${g}'`; pq.outFields = ["*"]; pq.returnGeometry = false;
+              const pRes = await invPopLayer.queryFeatures(pq).catch(() => ({ features: [] }));
+              if (pRes.features.length) popAttrs = pRes.features[0].attributes;
+            }
+          }
+        } catch(e) {}
+      }
+      feature = { ...feature, attributes: { ...feature.attributes, ...workAttrs, ...popAttrs }, _needsChainQuery: false };
+    }
+
     const a = feature.attributes;
     const itemKey = "inv_" + a.OBJECTID + "_" + feature._layerType;
 
@@ -1138,6 +1198,14 @@ require([
   document.querySelectorAll(".cat-pill").forEach(pill => {
     pill.addEventListener("click", () => {
       const cat = pill.dataset.cat;
+      if (cat === "Invasive") {
+        showInvasive = !showInvasive;
+        pill.classList.toggle("active", showInvasive);
+        invLineLayer.visible = showInvasive;
+        invAreaLayer.visible = showInvasive;
+        if (clickMode) clearClick(); else refreshFromExtent();
+        return;
+      }
       if (activeCats.has(cat)) { activeCats.delete(cat); pill.classList.remove("active"); }
       else                      { activeCats.add(cat);    pill.classList.add("active"); }
       applyFilters();
@@ -1269,6 +1337,8 @@ require([
 
   document.getElementById("clear-filters-btn").addEventListener("click", () => {
     activeCats = new Set(["Forestry","Fire","Mechanical","Chemical"]);
+    showInvasive = true;
+    invLineLayer.visible = invAreaLayer.visible = true;
     document.querySelectorAll(".cat-pill").forEach(p => p.classList.add("active"));
     activeType = ""; activeYears = new Set(); activeArea = ""; activeDetails = new Set();
     document.getElementById("type-select").value = "";
@@ -1314,8 +1384,12 @@ require([
         let popAttrs = {};
         if (popGuid) {
           try {
+            // Normalize GUID — ArcGIS GLOBALID requires curly-brace format
+            let gstr = String(popGuid).trim();
+            if (!gstr.startsWith("{")) gstr = "{" + gstr;
+            if (!gstr.endsWith("}"))   gstr = gstr + "}";
             const pq = invPopLayer.createQuery();
-            pq.where          = `GLOBALID = '${String(popGuid).replace(/'/g,"''")}'`;
+            pq.where          = `GLOBALID = '${gstr}'`;
             pq.outFields      = ["*"];
             pq.returnGeometry = false;
             const pRes = await invPopLayer.queryFeatures(pq);
