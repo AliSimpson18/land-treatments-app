@@ -1152,7 +1152,7 @@ require([
       if (eodId) {
         try {
           const wq = invWorkLayer.createQuery();
-          wq.where = `IP_EOD_ID = '${String(eodId).replace(/'/g,"''")}'`;
+          wq.where = `IP_EOD_ID = ${fmtEodId(eodId)}`;
           wq.outFields = ["*"]; wq.returnGeometry = false;
           const wRes = await invWorkLayer.queryFeatures(wq);
           if (wRes.features.length) {
@@ -1517,7 +1517,8 @@ require([
         results.push({
           attributes: {
             ...geoFeat.attributes, ...workAttrs, ...popAttrs,
-            _speciesName: popAttrs.SPCS || null
+            _speciesName: popAttrs.SPCS || null,
+            _workDT: workAttrs.DT != null ? workAttrs.DT : null
           },
           geometry:     geoFeat.geometry,
           _invasive:    true,
