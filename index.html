@@ -533,7 +533,7 @@
       <div class="cat-pill active" data-cat="Fire"><span class="pill-dot"></span>Fire</div>
       <div class="cat-pill active" data-cat="Mechanical"><span class="pill-dot"></span>Mechanical</div>
       <div class="cat-pill active" data-cat="Chemical"><span class="pill-dot"></span>Chemical</div>
-      <div class="cat-pill active" data-cat="Invasive"><span class="pill-dot"></span>Invasive</div>
+      <div class="cat-pill" data-cat="Invasive"><span class="pill-dot"></span>Invasive</div>
     </div>
     <div class="dropdowns-grid">
       <select id="area-select"  class="filter-select full-col"><option value="">All Management Areas</option></select>
@@ -709,7 +709,7 @@ require([
 
   // ── State ────────────────────────────────────────────────
   let activeCats        = new Set(["Forestry","Fire","Mechanical","Chemical"]);
-  let showInvasive      = true;
+  let showInvasive      = false;
   let activeInvSpecies  = "";
   let activeInvYears    = new Set();
   let activeType      = "";
@@ -778,6 +778,7 @@ require([
     url: INVASIVE_URL + "/2",
     outFields: INV_LINE_FIELDS,
     title: "Invasive Treatments (Line)",
+    visible: false,
     renderer: {
       type: "simple",
       symbol: { type: "simple-line", color: hexToRgba(INVASIVE_COLOR, 0.9), width: 2 }
@@ -788,6 +789,7 @@ require([
     url: INVASIVE_URL + "/3",
     outFields: INV_AREA_FIELDS,
     title: "Invasive Treatments (Area)",
+    visible: false,
     renderer: {
       type: "simple",
       symbol: {
@@ -1448,14 +1450,17 @@ require([
 
   document.getElementById("clear-filters-btn").addEventListener("click", () => {
     activeCats = new Set(["Forestry","Fire","Mechanical","Chemical"]);
-    showInvasive = true;
+    showInvasive = false;
     activeInvSpecies = ""; activeInvYears = new Set();
-    invLineLayer.visible = invAreaLayer.visible = true;
+    invLineLayer.visible = invAreaLayer.visible = false;
     invLineLayer.definitionExpression = invAreaLayer.definitionExpression = "1=1";
     document.getElementById("inv-species-select").value = "";
     document.querySelectorAll("#inv-year-ms-dropdown input[type=checkbox]").forEach(cb => cb.checked = false);
     updateInvYearBtn();
-    document.querySelectorAll(".cat-pill").forEach(p => p.classList.add("active"));
+    document.querySelectorAll(".cat-pill").forEach(p => {
+      if (p.dataset.cat === "Invasive") p.classList.remove("active");
+      else p.classList.add("active");
+    });
     activeType = ""; activeYears = new Set(); activeArea = ""; activeDetails = new Set();
     document.getElementById("type-select").value = "";
     document.getElementById("area-select").value = "";
@@ -1739,14 +1744,16 @@ require([
         yrDropdown.appendChild(div);
       });
 
-      // Default to most recent fiscal year
+      // Default to all quarters of the most recent fiscal year
       if (years.length) {
-        activeInvYears.add(years[0]);
-        const firstCb = yrDropdown.querySelector("input");
-        if (firstCb) firstCb.checked = true;
+        const baseFY = years[0].split(" ")[0]; // e.g. "2025-26" from "2025-26 Q4"
+        const defaultYears = years.filter(y => y.split(" ")[0] === baseFY);
+        defaultYears.forEach(y => activeInvYears.add(y));
+        yrDropdown.querySelectorAll("input[type=checkbox]").forEach(cb => {
+          if (defaultYears.includes(cb.value)) cb.checked = true;
+        });
         updateInvYearBtn();
-        const parts = years[0].split("-");
-        const startYr = parseInt(parts[0]);
+        const startYr = parseInt(baseFY.split("-")[0]);
         if (!isNaN(startYr)) {
           const where = `DT >= DATE '${startYr}-10-01' AND DT < DATE '${startYr + 1}-10-01'`;
           invLineLayer.definitionExpression = where;
