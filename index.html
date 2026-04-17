@@ -1013,7 +1013,7 @@ require([
               if (fb && fb.SPCS) popAttrs = fb;
             }
             invFeatures.push({
-              attributes: { ...geoFeat.attributes, ...workAttrs, ...popAttrs, _speciesName: popAttrs.SPCS || null },
+              attributes: { ...geoFeat.attributes, ...workAttrs, ...popAttrs, _speciesName: popAttrs.SPCS || null, _workDT: workAttrs.DT != null ? workAttrs.DT : null },
               geometry: geoFeat.geometry,
               _invasive: true, _layerType: type, _needsChainQuery: false
             });
@@ -1177,7 +1177,7 @@ require([
           }
         } catch(e) {}
       }
-      const merged = { ...feature.attributes, ...workAttrs, ...popAttrs, _speciesName: popAttrs.SPCS || null };
+      const merged = { ...feature.attributes, ...workAttrs, ...popAttrs, _speciesName: popAttrs.SPCS || null, _workDT: workAttrs.DT != null ? workAttrs.DT : null };
       feature = { ...feature, attributes: merged, _needsChainQuery: false };
     }
 
@@ -1225,7 +1225,7 @@ require([
       ["Species",           a._speciesName || a.SPCS],
       ["Population Status", a.POP_STTS],
       ["Treatment Method",  a.TRTMNT_MTHD],
-      ["Date",              fmtDate(a.DT)],
+      ["Date",              fmtDate(a._workDT != null ? a._workDT : a.DT)],
       ["Fiscal Year",       a.FSCL_YR],
       ["Acres Treated",     a.ACRS != null ? fmtNum(a.ACRS) + " ac" : ""],
       ["Infested Acres",    a.INFESTED_ACRS != null ? fmtNum(a.INFESTED_ACRS) + " ac" : ""],
@@ -1234,38 +1234,33 @@ require([
     ]);
 
     addSection("Location", [
-      ["Management Area",    a.MGT_AREA],
-      ["Management Unit",    a.MGT_UNIT],
-      ["Treatment Strategy", a.TRTMNTSTGY]
+      ["Management Area", a.MGT_AREA],
+      ["Management Unit", a.MGT_UNIT]
     ]);
 
     addSection("Crew & Time", [
-      ["Data Collector",         a.DATA_COLL_NM],
-      ["Crew",                   a.CREW],
-      ["Applicators",            a.AA],
-      ["Number of Crew",         a.NO_CREW],
+      ["Data Collector",           a.DATA_COLL_NM],
+      ["Crew",                     a.CREW],
+      ["Applicators",              a.AA],
+      ["Number of Crew",           a.NO_CREW],
       ["Effective Treatment Time", a.EFFCT_TM],
-      ["Total Hours",            a.TOTL_HRS],
-      ["Budget Center",          a.BDGT_CNTR]
+      ["Total Hours",              a.TOTL_HRS],
+      ["Budget Center",            a.BDGT_CNTR]
     ]);
 
-    // Surface types — only show populated slots
-    const surfRows = [];
-    [1,2,3,4].forEach(n => {
-      const v = a[`SURF${n}`];
-      if (v) surfRows.push([`Surface ${n}`, v]);
-    });
-    if (surfRows.length) addSection("Surface", surfRows);
-
-    // Herbicides — only show populated slots
-    const herbRows = [];
+    // Mix — herbicides and surfactants combined
+    const mixRows = [];
     [1,2,3,4].forEach(n => {
       const name = a[`HRBCID${n}`], amt = a[`HRBCID${n}_AMT`], uom = a[`HRBCID${n}_UOM`], cst = a[`HRBCID${n}_CST`];
       if (!name && !amt) return;
       const detail = [name, amt && uom ? `${amt} ${uom}` : amt, cst ? "$" + Number(cst).toLocaleString() : ""].filter(Boolean).join(" · ");
-      herbRows.push([`Herbicide ${n}`, detail]);
+      mixRows.push([`Herbicide ${n}`, detail]);
     });
-    if (herbRows.length) addSection("Herbicides", herbRows);
+    [1,2,3,4].forEach(n => {
+      const v = a[`SURF${n}`];
+      if (v) mixRows.push([`Surfactant ${n}`, v]);
+    });
+    if (mixRows.length) addSection("Mix", mixRows);
 
     addSection("Cost", [
       ["Total Cost",     a.TOTL_CST  != null ? "$" + Number(a.TOTL_CST).toLocaleString()  : ""],
