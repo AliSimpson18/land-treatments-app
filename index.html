@@ -551,7 +551,10 @@
       <div class="invasive-filter-label">Invasive Treatments</div>
       <div class="dropdowns-grid">
         <select id="inv-species-select" class="filter-select full-col"><option value="">All Species</option></select>
-        <select id="inv-year-select"    class="filter-select full-col"><option value="">All Fiscal Years</option></select>
+        <div id="inv-year-multiselect" class="multi-select full-col">
+          <button id="inv-year-ms-btn" class="multi-select-btn">All Fiscal Years</button>
+          <div id="inv-year-ms-dropdown" class="multi-select-dropdown"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -708,7 +711,7 @@ require([
   let activeCats        = new Set(["Forestry","Fire","Mechanical","Chemical"]);
   let showInvasive      = true;
   let activeInvSpecies  = "";
-  let activeInvYear     = "";
+  let activeInvYears    = new Set();
   let activeType      = "";
   let activeYears     = new Set();
   let activeArea      = "";
@@ -963,7 +966,7 @@ require([
           if (eodIds.length) {
             try {
               const wq = invWorkLayer.createQuery();
-              wq.where = `IP_EOD_ID IN (${eodIds.map(id => `'${String(id).replace(/'/g,"''")}'`).join(",")})`;
+              wq.where = `IP_EOD_ID IN (${eodIds.map(fmtEodId).join(",")})`;
               wq.outFields = ["*"]; wq.returnGeometry = false;
               const wRes = await invWorkLayer.queryFeatures(wq);
               wRes.features.forEach(f => { workMap[f.attributes.IP_EOD_ID] = f.attributes; });
@@ -1347,8 +1350,9 @@ require([
   });
 
   document.addEventListener("click", e => {
-    if (!e.target.closest("#year-multiselect"))   document.getElementById("year-ms-dropdown").classList.remove("open");
-    if (!e.target.closest("#detail-multiselect")) document.getElementById("detail-ms-dropdown").classList.remove("open");
+    if (!e.target.closest("#year-multiselect"))     document.getElementById("year-ms-dropdown").classList.remove("open");
+    if (!e.target.closest("#detail-multiselect"))   document.getElementById("detail-ms-dropdown").classList.remove("open");
+    if (!e.target.closest("#inv-year-multiselect")) document.getElementById("inv-year-ms-dropdown").classList.remove("open");
   });
 
   function updateDetailBtn() {
@@ -1435,11 +1439,12 @@ require([
   document.getElementById("clear-filters-btn").addEventListener("click", () => {
     activeCats = new Set(["Forestry","Fire","Mechanical","Chemical"]);
     showInvasive = true;
-    activeInvSpecies = ""; activeInvYear = "";
+    activeInvSpecies = ""; activeInvYears = new Set();
     invLineLayer.visible = invAreaLayer.visible = true;
     invLineLayer.definitionExpression = invAreaLayer.definitionExpression = "1=1";
     document.getElementById("inv-species-select").value = "";
-    document.getElementById("inv-year-select").value = "";
+    document.querySelectorAll("#inv-year-ms-dropdown input[type=checkbox]").forEach(cb => cb.checked = false);
+    updateInvYearBtn();
     document.querySelectorAll(".cat-pill").forEach(p => p.classList.add("active"));
     activeType = ""; activeYears = new Set(); activeArea = ""; activeDetails = new Set();
     document.getElementById("type-select").value = "";
@@ -1450,6 +1455,9 @@ require([
     updateDetailBtn();
     applyFilters();
   });
+
+  // Format IP_EOD_ID for SQL — numeric IDs must not be quoted
+  const fmtEodId = id => /^\d+$/.test(String(id).trim()) ? String(id).trim() : `'${String(id).replace(/'/g,"''")}'`;
 
   async function queryInvasiveAtPoint(point, bufferMeters = 0) {
     const bufGeom = bufferMeters > 0 ? {
@@ -1478,7 +1486,7 @@ require([
         if (eodId) {
           try {
             const wq = invWorkLayer.createQuery();
-            wq.where          = `IP_EOD_ID = '${String(eodId).replace(/'/g,"''")}'`;
+            wq.where          = `IP_EOD_ID = ${fmtEodId(eodId)}`;
             wq.outFields      = ["*"];
             wq.returnGeometry = false;
             const wRes = await invWorkLayer.queryFeatures(wq);
@@ -1706,13 +1714,25 @@ require([
       const specSel = document.getElementById("inv-species-select");
       species.forEach(s => { const o = document.createElement("option"); o.value = o.textContent = s; specSel.appendChild(o); });
 
-      const yrSel = document.getElementById("inv-year-select");
-      years.forEach(y => { const o = document.createElement("option"); o.value = o.textContent = y; yrSel.appendChild(o); });
+      const yrDropdown = document.getElementById("inv-year-ms-dropdown");
+      years.forEach(y => {
+        const div = document.createElement("div");
+        div.className = "ms-option";
+        div.innerHTML = `<input type="checkbox" value="${esc(y)}"> ${esc(y)}`;
+        div.querySelector("input").addEventListener("change", cb => {
+          if (cb.target.checked) activeInvYears.add(y); else activeInvYears.delete(y);
+          updateInvYearBtn();
+          applyInvasiveFilters();
+        });
+        yrDropdown.appendChild(div);
+      });
 
       // Default to most recent fiscal year
       if (years.length) {
-        activeInvYear = years[0];
-        yrSel.value = years[0];
+        activeInvYears.add(years[0]);
+        const firstCb = yrDropdown.querySelector("input");
+        if (firstCb) firstCb.checked = true;
+        updateInvYearBtn();
         const parts = years[0].split("-");
         const startYr = parseInt(parts[0]);
         if (!isNaN(startYr)) {
@@ -1742,12 +1762,12 @@ require([
       } catch(e) {}
     }
 
-    if (activeInvYear) {
-      const parts = activeInvYear.split("-");
-      const startYr = parseInt(parts[0]);
-      if (!isNaN(startYr)) {
-        conditions.push(`DT >= DATE '${startYr}-10-01' AND DT < DATE '${startYr + 1}-10-01'`);
-      }
+    if (activeInvYears.size > 0) {
+      const yrClauses = [...activeInvYears].map(y => {
+        const startYr = parseInt(y.split("-")[0]);
+        return isNaN(startYr) ? null : `(DT >= DATE '${startYr}-10-01' AND DT < DATE '${startYr + 1}-10-01')`;
+      }).filter(Boolean);
+      if (yrClauses.length) conditions.push(yrClauses.join(" OR "));
     }
 
     const where = conditions.length ? conditions.join(" AND ") : "1=1";
@@ -1757,13 +1777,27 @@ require([
     if (clickMode) clearClick(); else refreshFromExtent();
   }
 
-  document.getElementById("inv-species-select").addEventListener("change", e => {
-    activeInvSpecies = e.target.value;
-    applyInvasiveFilters();
+  function updateInvYearBtn() {
+    const btn = document.getElementById("inv-year-ms-btn");
+    if (activeInvYears.size === 0) {
+      btn.textContent = "All Fiscal Years";
+      btn.classList.remove("active");
+    } else if (activeInvYears.size === 1) {
+      btn.textContent = [...activeInvYears][0];
+      btn.classList.add("active");
+    } else {
+      btn.textContent = activeInvYears.size + " years selected";
+      btn.classList.add("active");
+    }
+  }
+
+  document.getElementById("inv-year-ms-btn").addEventListener("click", e => {
+    e.stopPropagation();
+    document.getElementById("inv-year-ms-dropdown").classList.toggle("open");
   });
 
-  document.getElementById("inv-year-select").addEventListener("change", e => {
-    activeInvYear = e.target.value;
+  document.getElementById("inv-species-select").addEventListener("change", e => {
+    activeInvSpecies = e.target.value;
     applyInvasiveFilters();
   });
 
