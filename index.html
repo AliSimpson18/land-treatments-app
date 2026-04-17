@@ -718,7 +718,8 @@ require([
   let activeDetails   = new Set();
   let clickMode       = false;
   let hoverOid        = null;
-  let currentFeatures = [];
+  let currentFeatures         = [];
+  let currentInvasiveFeatures = [];
   let detailHighlight = null;
   let treatLV       = null;
   let invLineLV     = null;
@@ -850,7 +851,8 @@ require([
     const list  = document.getElementById("results-list");
     const count = document.getElementById("results-count");
 
-    currentFeatures = features.filter(f => !f._invasive);
+    currentFeatures         = features.filter(f => !f._invasive);
+    currentInvasiveFeatures = features.filter(f =>  f._invasive);
     const totalAcres = features.reduce((sum, f) => {
       const ac = f._invasive ? (f.attributes.ACRS || 0) : (f.attributes.ACRES || 0);
       return sum + ac;
@@ -860,7 +862,7 @@ require([
       : "";
     count.textContent = features.length.toLocaleString() + " treatment" + (features.length !== 1 ? "s" : "") + acresStr;
 
-    document.getElementById("export-btn").style.display = currentFeatures.length ? "inline-block" : "none";
+    document.getElementById("export-btn").style.display = (currentFeatures.length || currentInvasiveFeatures.length) ? "inline-block" : "none";
 
     if (!features.length) {
       list.innerHTML = `<div class="empty-msg">No treatments found${clickMode ? " at this location" : " in current view"}.</div>`;
@@ -1600,9 +1602,9 @@ require([
   ];
 
   function showExportModal() {
-    if (!currentFeatures.length) return;
+    if (!currentFeatures.length && !currentInvasiveFeatures.length) return;
 
-    // Find which fields have at least one non-null value in current results
+    // Find which LM fields have at least one non-null value
     const populated = new Set();
     currentFeatures.forEach(f => {
       EXPORT_SECTIONS.forEach(sec => {
@@ -1613,28 +1615,39 @@ require([
       });
     });
 
-    // Build field checklist
+    // Build LM field checklist
     const listEl = document.getElementById("export-fields-list");
     listEl.innerHTML = "";
-    EXPORT_SECTIONS.forEach(sec => {
-      const groupEl = document.createElement("div");
-      groupEl.className = "export-group";
-      groupEl.innerHTML = `<div class="export-group-title">${esc(sec.title)}</div>`;
-      const gridEl = document.createElement("div");
-      gridEl.className = "export-fields-grid";
-      sec.fields.forEach(field => {
-        const hasData = populated.has(field);
-        const lbl = document.createElement("label");
-        lbl.className = "export-field-label" + (hasData ? "" : " empty");
-        lbl.innerHTML = `<input type="checkbox" value="${field}"${hasData ? " checked" : ""}> ${esc(FIELD_LABEL[field] || field)}`;
-        gridEl.appendChild(lbl);
-      });
-      groupEl.appendChild(gridEl);
-      listEl.appendChild(groupEl);
-    });
 
+    if (currentFeatures.length) {
+      EXPORT_SECTIONS.forEach(sec => {
+        const groupEl = document.createElement("div");
+        groupEl.className = "export-group";
+        groupEl.innerHTML = `<div class="export-group-title">${esc(sec.title)}</div>`;
+        const gridEl = document.createElement("div");
+        gridEl.className = "export-fields-grid";
+        sec.fields.forEach(field => {
+          const hasData = populated.has(field);
+          const lbl = document.createElement("label");
+          lbl.className = "export-field-label" + (hasData ? "" : " empty");
+          lbl.innerHTML = `<input type="checkbox" value="${field}"${hasData ? " checked" : ""}> ${esc(FIELD_LABEL[field] || field)}`;
+          gridEl.appendChild(lbl);
+        });
+        groupEl.appendChild(gridEl);
+        listEl.appendChild(groupEl);
+      });
+    }
+
+    if (currentInvasiveFeatures.length) {
+      const note = document.createElement("div");
+      note.style.cssText = "font-size:11px;color:#D94F8A;margin-top:10px;padding-top:8px;border-top:1px solid #f5d5e8;";
+      note.textContent = `+ ${currentInvasiveFeatures.length} invasive treatment${currentInvasiveFeatures.length !== 1 ? "s" : ""} will be exported to a separate sheet (XLSX) or file (CSV).`;
+      listEl.appendChild(note);
+    }
+
+    const total = currentFeatures.length + currentInvasiveFeatures.length;
     document.getElementById("export-modal-title").textContent =
-      `Export ${currentFeatures.length.toLocaleString()} treatment${currentFeatures.length !== 1 ? "s" : ""}`;
+      `Export ${total.toLocaleString()} treatment${total !== 1 ? "s" : ""}`;
     document.getElementById("export-overlay").classList.add("open");
   }
 
@@ -1642,43 +1655,119 @@ require([
     document.getElementById("export-overlay").classList.remove("open");
   }
 
+  // Invasive export field definitions
+  const INV_EXPORT_FIELDS = [
+    { field: "_speciesName",  label: "Species" },
+    { field: "POP_STTS",      label: "Population Status" },
+    { field: "TRTMNT_MTHD",  label: "Treatment Method" },
+    { field: "_workDT",       label: "Date",      isDate: true },
+    { field: "FSCL_YR",      label: "Fiscal Year" },
+    { field: "ACRS",          label: "Acres Treated" },
+    { field: "INFESTED_ACRS", label: "Infested Acres" },
+    { field: "DENS",          label: "Density" },
+    { field: "MGT_AREA",      label: "Management Area" },
+    { field: "MGT_UNIT",      label: "Management Unit" },
+    { field: "DATA_COLL_NM",  label: "Data Collector" },
+    { field: "CREW",          label: "Crew" },
+    { field: "AA",            label: "Applicators" },
+    { field: "NO_CREW",       label: "Number of Crew" },
+    { field: "EFFCT_TM",      label: "Effective Treatment Time" },
+    { field: "TOTL_HRS",      label: "Total Hours" },
+    { field: "BDGT_CNTR",     label: "Budget Center" },
+    { field: "HRBCID1",       label: "Herbicide 1" },
+    { field: "HRBCID1_AMT",   label: "Herbicide 1 Amount" },
+    { field: "HRBCID1_UOM",   label: "Herbicide 1 Unit" },
+    { field: "HRBCID2",       label: "Herbicide 2" },
+    { field: "HRBCID2_AMT",   label: "Herbicide 2 Amount" },
+    { field: "HRBCID2_UOM",   label: "Herbicide 2 Unit" },
+    { field: "HRBCID3",       label: "Herbicide 3" },
+    { field: "HRBCID3_AMT",   label: "Herbicide 3 Amount" },
+    { field: "HRBCID3_UOM",   label: "Herbicide 3 Unit" },
+    { field: "HRBCID4",       label: "Herbicide 4" },
+    { field: "HRBCID4_AMT",   label: "Herbicide 4 Amount" },
+    { field: "HRBCID4_UOM",   label: "Herbicide 4 Unit" },
+    { field: "SURF1",         label: "Surfactant 1" },
+    { field: "SURF2",         label: "Surfactant 2" },
+    { field: "SURF3",         label: "Surfactant 3" },
+    { field: "SURF4",         label: "Surfactant 4" },
+    { field: "TOTL_CST",      label: "Total Cost" },
+    { field: "CMCL_CST",      label: "Chemical Cost" },
+    { field: "WTHR",          label: "Weather" },
+    { field: "CMMT",          label: "Comments" }
+  ];
+
+  function buildInvasiveRows() {
+    const headers = INV_EXPORT_FIELDS.map(f => f.label);
+    const fmtD = v => { const d = new Date(v); return isNaN(d) ? String(v) : d.toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"}); };
+    const rows = currentInvasiveFeatures.map(f =>
+      INV_EXPORT_FIELDS.map(({ field, isDate }) => {
+        const raw = f.attributes[field];
+        if (raw === null || raw === undefined || raw === "") return "";
+        return isDate ? fmtD(raw) : raw;
+      })
+    );
+    return { headers, rows };
+  }
+
   function doExport() {
     const selectedFields = [...document.querySelectorAll("#export-fields-list input[type=checkbox]:checked")]
       .map(cb => cb.value);
-    if (!selectedFields.length) return;
+    if (!selectedFields.length && !currentInvasiveFeatures.length) return;
 
-    const fmt     = document.querySelector("input[name=export-fmt]:checked").value;
-    const headers = selectedFields.map(f => FIELD_LABEL[f] || f);
-    const rows    = currentFeatures.map(f =>
-      selectedFields.map(field => {
-        const raw = f.attributes[field];
-        if (raw === null || raw === undefined || raw === "") return "";
-        if (DATE_FIELDS.has(field)) {
-          const d = new Date(raw);
-          return isNaN(d) ? String(raw) : d.toLocaleDateString("en-US", { year:"numeric", month:"2-digit", day:"2-digit" });
-        }
-        return raw;
-      })
-    );
-
+    const fmt      = document.querySelector("input[name=export-fmt]:checked").value;
     const filename = "land_treatments_" + new Date().toISOString().slice(0, 10);
 
-    if (fmt === "csv") {
-      const csvContent = [headers, ...rows].map(row =>
-        row.map(v => {
-          const s = String(v === null || v === undefined ? "" : v);
-          return (s.includes(",") || s.includes('"') || s.includes("\n"))
-            ? '"' + s.replace(/"/g, '""') + '"'
-            : s;
-        }).join(",")
-      ).join("\n");
-      const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
-      triggerDownload(blob, filename + ".csv");
-    } else {
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-      XLSX.utils.book_append_sheet(wb, ws, "Treatments");
-      XLSX.writeFile(wb, filename + ".xlsx");
+    try {
+      if (fmt === "xlsx") {
+        if (typeof XLSX === "undefined") { alert("Excel export library failed to load. Please try CSV instead."); return; }
+        const wb = XLSX.utils.book_new();
+
+        if (selectedFields.length && currentFeatures.length) {
+          const headers = selectedFields.map(f => FIELD_LABEL[f] || f);
+          const rows = currentFeatures.map(f =>
+            selectedFields.map(field => {
+              const raw = f.attributes[field];
+              if (raw === null || raw === undefined || raw === "") return "";
+              if (DATE_FIELDS.has(field)) { const d = new Date(raw); return isNaN(d) ? String(raw) : d.toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"}); }
+              return raw;
+            })
+          );
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([headers, ...rows]), "Land Management");
+        }
+
+        if (currentInvasiveFeatures.length) {
+          const { headers, rows } = buildInvasiveRows();
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([headers, ...rows]), "Invasive Treatments");
+        }
+
+        XLSX.writeFile(wb, filename + ".xlsx");
+
+      } else {
+        // CSV — LM only (invasive schema differs)
+        if (!selectedFields.length) { hideExportModal(); return; }
+        const headers = selectedFields.map(f => FIELD_LABEL[f] || f);
+        const rows = currentFeatures.map(f =>
+          selectedFields.map(field => {
+            const raw = f.attributes[field];
+            if (raw === null || raw === undefined || raw === "") return "";
+            if (DATE_FIELDS.has(field)) { const d = new Date(raw); return isNaN(d) ? String(raw) : d.toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"}); }
+            return raw;
+          })
+        );
+        const toCsv = data => data.map(row =>
+          row.map(v => { const s = String(v ?? ""); return (s.includes(",") || s.includes('"') || s.includes("\n")) ? '"' + s.replace(/"/g,'""') + '"' : s; }).join(",")
+        ).join("\n");
+        triggerDownload(new Blob(["\uFEFF" + toCsv([headers, ...rows])], { type:"text/csv;charset=utf-8;" }), filename + "_lm.csv");
+
+        if (currentInvasiveFeatures.length) {
+          const { headers: ih, rows: ir } = buildInvasiveRows();
+          triggerDownload(new Blob(["\uFEFF" + toCsv([ih, ...ir])], { type:"text/csv;charset=utf-8;" }), filename + "_invasive.csv");
+        }
+      }
+    } catch(e) {
+      console.error("Export error:", e);
+      alert("Export failed: " + e.message);
+      return;
     }
 
     hideExportModal();
