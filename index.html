@@ -102,10 +102,24 @@
     .cat-pill[data-cat="Chemical"]   .pill-dot { background: #7F77DD; }
     .cat-pill[data-cat="Chemical"].active   .pill-dot { background: white; }
 
-    .cat-pill[data-cat="Invasive"]   { border-color: #E8871A; color: #E8871A; }
-    .cat-pill[data-cat="Invasive"].active   { background: #E8871A; color: white; }
-    .cat-pill[data-cat="Invasive"]   .pill-dot { background: #E8871A; }
+    .cat-pill[data-cat="Invasive"]   { border-color: #D94F8A; color: #D94F8A; }
+    .cat-pill[data-cat="Invasive"].active   { background: #D94F8A; color: white; }
+    .cat-pill[data-cat="Invasive"]   .pill-dot { background: #D94F8A; }
     .cat-pill[data-cat="Invasive"].active   .pill-dot { background: white; }
+
+    #invasive-filters {
+      border-top: 2px solid #f5d5e8;
+      margin-top: 10px;
+      padding-top: 8px;
+    }
+    .invasive-filter-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: #D94F8A;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 6px;
+    }
 
     .dropdowns-grid {
       display: grid;
@@ -240,13 +254,13 @@
     .result-item[data-cat="Fire"]::before       { background: #E24B4A; }
     .result-item[data-cat="Mechanical"]::before { background: #378ADD; }
     .result-item[data-cat="Chemical"]::before   { background: #7F77DD; }
-    .result-item[data-cat="Invasive"]::before   { background: #E8871A; }
+    .result-item[data-cat="Invasive"]::before   { background: #D94F8A; }
     .invasive-tag {
       display: inline-block;
       font-size: 10px;
       font-weight: 700;
-      color: #E8871A;
-      border: 1px solid #E8871A;
+      color: #D94F8A;
+      border: 1px solid #D94F8A;
       border-radius: 3px;
       padding: 0 4px;
       margin-left: 4px;
@@ -533,6 +547,13 @@
         <div id="detail-ms-dropdown" class="multi-select-dropdown"></div>
       </div>
     </div>
+    <div id="invasive-filters">
+      <div class="invasive-filter-label">Invasive Treatments</div>
+      <div class="dropdowns-grid">
+        <select id="inv-species-select" class="filter-select full-col"><option value="">All Species</option></select>
+        <select id="inv-year-select"    class="filter-select full-col"><option value="">All Fiscal Years</option></select>
+      </div>
+    </div>
   </div>
 
   <!-- Results pane (contains results list + overlaid detail pane) -->
@@ -626,7 +647,7 @@ require([
   const TREATMENT_URL  = "https://services.arcgis.com/s8wtJX9suxFen6TA/arcgis/rest/services/Land_Treatments_ALL/FeatureServer/2";
   const MGMT_URL       = "https://services.arcgis.com/s8wtJX9suxFen6TA/arcgis/rest/services/SJRWMD_Management_Area_viewLayer/FeatureServer/0";
   const INVASIVE_URL   = "https://utility.arcgis.com/usrsvcs/servers/2afb3ec8b4a14a95bc1a059efcbd9ecd/rest/services/SJRWMD/INVPL_REF/FeatureServer";
-  const INVASIVE_COLOR = "#E8871A";
+  const INVASIVE_COLOR = "#D94F8A";
 
   const CAT_COLOR = {
     Forestry:   "#639922",
@@ -684,8 +705,10 @@ require([
   const ACRES_FIELDS = new Set(["ACRES","ACRES_BURNED"]);
 
   // ── State ────────────────────────────────────────────────
-  let activeCats      = new Set(["Forestry","Fire","Mechanical","Chemical"]);
-  let showInvasive    = true;
+  let activeCats        = new Set(["Forestry","Fire","Mechanical","Chemical"]);
+  let showInvasive      = true;
+  let activeInvSpecies  = "";
+  let activeInvYear     = "";
   let activeType      = "";
   let activeYears     = new Set();
   let activeArea      = "";
@@ -743,12 +766,6 @@ require([
     }
   });
 
-  function invasiveCutoff() {
-    const d = new Date();
-    d.setFullYear(d.getFullYear() - 2);
-    return `DT >= DATE '${d.toISOString().split("T")[0]}'`;
-  }
-
   const INV_LINE_FIELDS = ["OBJECTID","IP_EOD_ID","DT","SPCS","DENS","ACRS","DATA_COLL_NM","EOD_GUID","CMMT"];
   const INV_AREA_FIELDS = ["OBJECTID","IP_EOD_ID","DT","SPCS","DENS","ACRS","INFESTED_ACRS","DATA_COLL_NM","CUR","EOD_GUID","CMMT"];
 
@@ -756,7 +773,6 @@ require([
     url: INVASIVE_URL + "/2",
     outFields: INV_LINE_FIELDS,
     title: "Invasive Treatments (Line)",
-    definitionExpression: invasiveCutoff(),
     renderer: {
       type: "simple",
       symbol: { type: "simple-line", color: hexToRgba(INVASIVE_COLOR, 0.9), width: 2 }
@@ -767,7 +783,6 @@ require([
     url: INVASIVE_URL + "/3",
     outFields: INV_AREA_FIELDS,
     title: "Invasive Treatments (Area)",
-    definitionExpression: invasiveCutoff(),
     renderer: {
       type: "simple",
       symbol: {
@@ -855,11 +870,12 @@ require([
         div.className = "result-item" + (itemKey === selectedKey ? " selected" : "");
         div.dataset.cat = "Invasive";
         div.dataset.key = itemKey;
+        const spcs  = a._speciesName || a.SPCS || "";
         const acStr = a.ACRS ? Number(a.ACRS).toLocaleString("en-US",{maximumFractionDigits:1}) + " ac" : "";
         const dtStr = a.DT ? new Date(a.DT).toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"}) : "";
         div.innerHTML = `
-          <div class="res-title">${esc(a.MGT_AREA || a.SPCS || "Invasive Treatment")}<span class="invasive-tag">Invasive Plant</span></div>
-          <div class="res-line2">${esc(a.SPCS || "")}${a.TRTMNT_MTHD ? " · " + esc(a.TRTMNT_MTHD) : ""}</div>
+          <div class="res-title">${esc(a.MGT_AREA || spcs || "Invasive Treatment")}<span class="invasive-tag">Invasive Plant</span></div>
+          <div class="res-line2">${esc(spcs)}${a.TRTMNT_MTHD ? " · " + esc(a.TRTMNT_MTHD) : ""}</div>
           <div class="res-line3">${[dtStr, acStr].filter(Boolean).join(" // ")}</div>`;
         div.addEventListener("mouseenter", () => {
           hoverOid = itemKey;
@@ -1079,19 +1095,28 @@ require([
           const wRes = await invWorkLayer.queryFeatures(wq);
           if (wRes.features.length) {
             workAttrs = wRes.features[0].attributes;
-            let g = String(workAttrs.POP_GUID || "").trim();
-            if (g) {
-              if (!g.startsWith("{")) g = "{" + g;
-              if (!g.endsWith("}"))   g = g + "}";
+            const tryPop = async (guidVal) => {
+            let g = String(guidVal || "").trim();
+            if (!g) return {};
+            if (!g.startsWith("{")) g = "{" + g;
+            if (!g.endsWith("}"))   g = g + "}";
+            try {
               const pq = invPopLayer.createQuery();
               pq.where = `GLOBALID = '${g}'`; pq.outFields = ["*"]; pq.returnGeometry = false;
-              const pRes = await invPopLayer.queryFeatures(pq).catch(() => ({ features: [] }));
-              if (pRes.features.length) popAttrs = pRes.features[0].attributes;
-            }
+              const r = await invPopLayer.queryFeatures(pq);
+              return r.features.length ? r.features[0].attributes : {};
+            } catch(e) { return {}; }
+          };
+          if (workAttrs.POP_GUID) popAttrs = await tryPop(workAttrs.POP_GUID);
+          if (!popAttrs.SPCS && feature.attributes.SPCS) {
+            const fb = await tryPop(feature.attributes.SPCS);
+            if (fb.SPCS) popAttrs = fb;
+          }
           }
         } catch(e) {}
       }
-      feature = { ...feature, attributes: { ...feature.attributes, ...workAttrs, ...popAttrs }, _needsChainQuery: false };
+      const merged = { ...feature.attributes, ...workAttrs, ...popAttrs, _speciesName: popAttrs.SPCS || null };
+      feature = { ...feature, attributes: merged, _needsChainQuery: false };
     }
 
     const a = feature.attributes;
@@ -1109,7 +1134,7 @@ require([
       if (ext) view.goTo(ext.expand(2), { duration: 600 });
     }
 
-    document.getElementById("detail-title").textContent     = a.MGT_AREA || a.SPCS || "Invasive Treatment";
+    document.getElementById("detail-title").textContent     = a.MGT_AREA || a._speciesName || a.SPCS || "Invasive Treatment";
     document.getElementById("detail-cat-badge").textContent = "Invasive Plant";
     document.getElementById("detail-header").style.borderBottom = `3px solid ${INVASIVE_COLOR}`;
 
@@ -1135,7 +1160,7 @@ require([
     const fmtNum  = v => v != null ? Number(v).toLocaleString("en-US",{maximumFractionDigits:1}) : "";
 
     addSection("Treatment", [
-      ["Species",           a.SPCS],
+      ["Species",           a._speciesName || a.SPCS],
       ["Population Status", a.POP_STTS],
       ["Treatment Method",  a.TRTMNT_MTHD],
       ["Date",              fmtDate(a.DT)],
@@ -1338,7 +1363,11 @@ require([
   document.getElementById("clear-filters-btn").addEventListener("click", () => {
     activeCats = new Set(["Forestry","Fire","Mechanical","Chemical"]);
     showInvasive = true;
+    activeInvSpecies = ""; activeInvYear = "";
     invLineLayer.visible = invAreaLayer.visible = true;
+    invLineLayer.definitionExpression = invAreaLayer.definitionExpression = "1=1";
+    document.getElementById("inv-species-select").value = "";
+    document.getElementById("inv-year-select").value = "";
     document.querySelectorAll(".cat-pill").forEach(p => p.classList.add("active"));
     activeType = ""; activeYears = new Set(); activeArea = ""; activeDetails = new Set();
     document.getElementById("type-select").value = "";
@@ -1382,23 +1411,32 @@ require([
         }
 
         let popAttrs = {};
-        if (popGuid) {
+        const tryPopQuery = async (guidVal) => {
+          let g = String(guidVal).trim();
+          if (!g) return {};
+          if (!g.startsWith("{")) g = "{" + g;
+          if (!g.endsWith("}"))   g = g + "}";
           try {
-            // Normalize GUID — ArcGIS GLOBALID requires curly-brace format
-            let gstr = String(popGuid).trim();
-            if (!gstr.startsWith("{")) gstr = "{" + gstr;
-            if (!gstr.endsWith("}"))   gstr = gstr + "}";
             const pq = invPopLayer.createQuery();
-            pq.where          = `GLOBALID = '${gstr}'`;
-            pq.outFields      = ["*"];
-            pq.returnGeometry = false;
-            const pRes = await invPopLayer.queryFeatures(pq);
-            if (pRes.features.length) popAttrs = pRes.features[0].attributes;
-          } catch(e) {}
+            pq.where = `GLOBALID = '${g}'`; pq.outFields = ["*"]; pq.returnGeometry = false;
+            const r = await invPopLayer.queryFeatures(pq);
+            return r.features.length ? r.features[0].attributes : {};
+          } catch(e) { return {}; }
+        };
+
+        if (popGuid) popAttrs = await tryPopQuery(popGuid);
+
+        // Fallback: geometry.SPCS may itself be the population GLOBALID
+        if (!popAttrs.SPCS && geoFeat.attributes.SPCS) {
+          const fallback = await tryPopQuery(geoFeat.attributes.SPCS);
+          if (fallback.SPCS) popAttrs = fallback;
         }
 
         results.push({
-          attributes:   { ...geoFeat.attributes, ...workAttrs, ...popAttrs },
+          attributes: {
+            ...geoFeat.attributes, ...workAttrs, ...popAttrs,
+            _speciesName: popAttrs.SPCS || null
+          },
           geometry:     geoFeat.geometry,
           _invasive:    true,
           _layerType:   type,
@@ -1565,6 +1603,68 @@ require([
     document.querySelectorAll("#export-fields-list input[type=checkbox]").forEach(cb => cb.checked = false);
   });
 
+  // ── Invasive Filters ──────────────────────────────────────
+  async function loadInvasiveFilterOptions() {
+    try {
+      const [speciesRes, yearRes] = await Promise.all([
+        invPopLayer.queryFeatures(Object.assign(invPopLayer.createQuery(), { where: "1=1", outFields: ["SPCS"], returnGeometry: false, num: 2000 })),
+        invWorkLayer.queryFeatures(Object.assign(invWorkLayer.createQuery(), { where: "1=1", outFields: ["FSCL_YR"], returnGeometry: false, num: 5000 }))
+      ]);
+
+      const species = [...new Set(speciesRes.features.map(f => f.attributes.SPCS).filter(Boolean))].sort();
+      const years   = [...new Set(yearRes.features.map(f => f.attributes.FSCL_YR).filter(Boolean))].sort().reverse();
+
+      const specSel = document.getElementById("inv-species-select");
+      species.forEach(s => { const o = document.createElement("option"); o.value = o.textContent = s; specSel.appendChild(o); });
+
+      const yrSel = document.getElementById("inv-year-select");
+      years.forEach(y => { const o = document.createElement("option"); o.value = o.textContent = y; yrSel.appendChild(o); });
+    } catch(e) { console.warn("Invasive filter load error:", e); }
+  }
+
+  async function applyInvasiveFilters() {
+    const conditions = [];
+
+    if (activeInvSpecies) {
+      try {
+        const sq = invPopLayer.createQuery();
+        sq.where = `SPCS = '${activeInvSpecies.replace(/'/g,"''")}'`;
+        sq.outFields = ["GLOBALID"]; sq.returnGeometry = false;
+        const sRes = await invPopLayer.queryFeatures(sq);
+        if (sRes.features.length) {
+          const guids = sRes.features.map(f => `'${f.attributes.GLOBALID}'`).join(",");
+          conditions.push(`SPCS IN (${guids})`);
+        } else {
+          conditions.push("1=0");
+        }
+      } catch(e) {}
+    }
+
+    if (activeInvYear) {
+      const parts = activeInvYear.split("-");
+      const startYr = parseInt(parts[0]);
+      if (!isNaN(startYr)) {
+        conditions.push(`DT >= DATE '${startYr}-10-01' AND DT < DATE '${startYr + 1}-10-01'`);
+      }
+    }
+
+    const where = conditions.length ? conditions.join(" AND ") : "1=1";
+    invLineLayer.definitionExpression = where;
+    invAreaLayer.definitionExpression = where;
+
+    if (clickMode) clearClick(); else refreshFromExtent();
+  }
+
+  document.getElementById("inv-species-select").addEventListener("change", e => {
+    activeInvSpecies = e.target.value;
+    applyInvasiveFilters();
+  });
+
+  document.getElementById("inv-year-select").addEventListener("change", e => {
+    activeInvYear = e.target.value;
+    applyInvasiveFilters();
+  });
+
   // ── Bootstrap ─────────────────────────────────────────────
   async function loadFilterOptions() {
     try {
@@ -1618,7 +1718,7 @@ require([
       stationary => { if (stationary && !clickMode) refreshFromExtent(); }
     );
 
-    await Promise.all([loadFilterOptions(), loadTotalCount()]);
+    await Promise.all([loadFilterOptions(), loadInvasiveFilterOptions(), loadTotalCount()]);
     await Promise.all([refreshTypeOptions(), refreshDetailOptions()]);
     refreshFromExtent();
 
