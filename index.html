@@ -235,6 +235,19 @@
     .result-item[data-cat="Fire"]::before       { background: #E24B4A; }
     .result-item[data-cat="Mechanical"]::before { background: #378ADD; }
     .result-item[data-cat="Chemical"]::before   { background: #7F77DD; }
+    .result-item[data-cat="Invasive"]::before   { background: #E8871A; }
+    .invasive-tag {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      color: #E8871A;
+      border: 1px solid #E8871A;
+      border-radius: 3px;
+      padding: 0 4px;
+      margin-left: 4px;
+      vertical-align: middle;
+      line-height: 16px;
+    }
 
     .res-title { font-size: 13px; font-weight: 600; color: #1a1a1a; margin-bottom: 2px; }
     .res-line2 { font-size: 12px; color: #555; margin-bottom: 1px; }
@@ -604,8 +617,10 @@ require([
   function initApp() {
 
   // ── Config ───────────────────────────────────────────────
-  const TREATMENT_URL = "https://services.arcgis.com/s8wtJX9suxFen6TA/arcgis/rest/services/Land_Treatments_ALL/FeatureServer/2";
-  const MGMT_URL      = "https://services.arcgis.com/s8wtJX9suxFen6TA/arcgis/rest/services/SJRWMD_Management_Area_viewLayer/FeatureServer/0";
+  const TREATMENT_URL  = "https://services.arcgis.com/s8wtJX9suxFen6TA/arcgis/rest/services/Land_Treatments_ALL/FeatureServer/2";
+  const MGMT_URL       = "https://services.arcgis.com/s8wtJX9suxFen6TA/arcgis/rest/services/SJRWMD_Management_Area_viewLayer/FeatureServer/0";
+  const INVASIVE_URL   = "https://utility.arcgis.com/usrsvcs/servers/2afb3ec8b4a14a95bc1a059efcbd9ecd/rest/services/SJRWMD/INVPL_REF/FeatureServer";
+  const INVASIVE_COLOR = "#E8871A";
 
   const CAT_COLOR = {
     Forestry:   "#639922",
@@ -673,7 +688,7 @@ require([
   let currentFeatures = [];
   let detailHighlight = null;
   let treatLV       = null;   // LayerView
-  let selectedOid     = null;
+  let selectedKey     = null;   // String key — LM: String(OBJECTID), invasive: "inv_OID_type"
   let previousExtent  = null;
 
   // ── Layers ───────────────────────────────────────────────
@@ -721,10 +736,48 @@ require([
     }
   });
 
+  function invasiveCutoff() {
+    const d = new Date();
+    d.setFullYear(d.getFullYear() - 2);
+    return `DT >= DATE '${d.toISOString().split("T")[0]}'`;
+  }
+
+  const INV_LINE_FIELDS = ["OBJECTID","IP_EOD_ID","DT","SPCS","DENS","ACRS","DATA_COLL_NM","EOD_GUID","CMMT"];
+  const INV_AREA_FIELDS = ["OBJECTID","IP_EOD_ID","DT","SPCS","DENS","ACRS","INFESTED_ACRS","DATA_COLL_NM","CUR","EOD_GUID","CMMT"];
+
+  const invLineLayer = new FeatureLayer({
+    url: INVASIVE_URL + "/2",
+    outFields: INV_LINE_FIELDS,
+    title: "Invasive Treatments (Line)",
+    definitionExpression: invasiveCutoff(),
+    renderer: {
+      type: "simple",
+      symbol: { type: "simple-line", color: hexToRgba(INVASIVE_COLOR, 0.9), width: 2 }
+    }
+  });
+
+  const invAreaLayer = new FeatureLayer({
+    url: INVASIVE_URL + "/3",
+    outFields: INV_AREA_FIELDS,
+    title: "Invasive Treatments (Area)",
+    definitionExpression: invasiveCutoff(),
+    renderer: {
+      type: "simple",
+      symbol: {
+        type: "simple-fill",
+        color: hexToRgba(INVASIVE_COLOR, 0.4),
+        outline: { type: "simple-line", color: hexToRgba(INVASIVE_COLOR, 0.9), width: 1.5 }
+      }
+    }
+  });
+
+  const invWorkLayer = new FeatureLayer({ url: INVASIVE_URL + "/4" });
+  const invPopLayer  = new FeatureLayer({ url: INVASIVE_URL + "/0" });
+
   // ── Map & View ───────────────────────────────────────────
   const hoverLayer = new GraphicsLayer({ listMode: "hide" });
   const pinLayer   = new GraphicsLayer({ listMode: "hide" });
-  const map  = new Map({ basemap: "topo-vector", layers: [mgmtLayer, treatmentLayer, hoverLayer, pinLayer] });
+  const map  = new Map({ basemap: "topo-vector", layers: [mgmtLayer, invLineLayer, invAreaLayer, treatmentLayer, hoverLayer, pinLayer] });
   const view = new MapView({
     container: "viewDiv",
     map,
@@ -765,16 +818,20 @@ require([
 
   // ── Results List ─────────────────────────────────────────
   function renderResults(features) {
-    currentFeatures = features;
-    document.getElementById("export-btn").style.display = features.length ? "inline-block" : "none";
-
     const list  = document.getElementById("results-list");
     const count = document.getElementById("results-count");
-    const totalAcres = features.reduce((sum, f) => sum + (f.attributes.ACRES || 0), 0);
-    const acresStr   = totalAcres > 0
+
+    currentFeatures = features.filter(f => !f._invasive);
+    const totalAcres = features.reduce((sum, f) => {
+      const ac = f._invasive ? (f.attributes.ACRS || 0) : (f.attributes.ACRES || 0);
+      return sum + ac;
+    }, 0);
+    const acresStr = totalAcres > 0
       ? " · " + totalAcres.toLocaleString("en-US", { maximumFractionDigits: 1 }) + " ac total"
       : "";
     count.textContent = features.length.toLocaleString() + " treatment" + (features.length !== 1 ? "s" : "") + acresStr;
+
+    document.getElementById("export-btn").style.display = currentFeatures.length ? "inline-block" : "none";
 
     if (!features.length) {
       list.innerHTML = `<div class="empty-msg">No treatments found${clickMode ? " at this location" : " in current view"}.</div>`;
@@ -784,45 +841,62 @@ require([
     list.innerHTML = "";
     features.forEach(f => {
       const a   = f.attributes;
-      const cat = a.TREATMENT_CATEGORY || "";
       const div = document.createElement("div");
-      div.className = "result-item" + (a.OBJECTID === selectedOid ? " selected" : "");
-      div.dataset.cat = cat;
-      div.dataset.oid = a.OBJECTID;
 
-      const line2 = [cat, a.TREATMENT_TYPE, a.TREATMENT_DETAIL].filter(Boolean).join(" · ");
-      const acStr = a.ACRES ? Number(a.ACRES).toLocaleString("en-US",{maximumFractionDigits:1}) + " ac" : "";
-      const line3 = [a.FISCAL_YEAR, acStr].filter(Boolean).join(" // ");
+      if (f._invasive) {
+        const itemKey = "inv_" + a.OBJECTID + "_" + f._layerType;
+        div.className = "result-item" + (itemKey === selectedKey ? " selected" : "");
+        div.dataset.cat = "Invasive";
+        div.dataset.key = itemKey;
+        const acStr = a.ACRS ? Number(a.ACRS).toLocaleString("en-US",{maximumFractionDigits:1}) + " ac" : "";
+        const dtStr = a.DT ? new Date(a.DT).toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"}) : "";
+        div.innerHTML = `
+          <div class="res-title">${esc(a.MGT_AREA || a.SPCS || "Invasive Treatment")}<span class="invasive-tag">Invasive Plant</span></div>
+          <div class="res-line2">${esc(a.SPCS || "")}${a.TRTMNT_MTHD ? " · " + esc(a.TRTMNT_MTHD) : ""}</div>
+          <div class="res-line3">${[dtStr, acStr].filter(Boolean).join(" // ")}</div>`;
+        div.addEventListener("mouseenter", () => {
+          hoverOid = itemKey;
+          hoverLayer.removeAll();
+          if (f.geometry) {
+            const sym = f._layerType === "area"
+              ? { type: "simple-fill", color: [255,165,0,0.15], outline: { type: "simple-line", color: [255,140,0,1], width: 2.5 } }
+              : { type: "simple-line", color: [255,140,0,1], width: 3.5 };
+            hoverLayer.add(new Graphic({ geometry: f.geometry, symbol: sym }));
+          }
+        });
+        div.addEventListener("mouseleave", () => { hoverOid = null; hoverLayer.removeAll(); });
+        div.addEventListener("click", () => openDetail(f));
+      } else {
+        const cat = a.TREATMENT_CATEGORY || "";
+        div.className = "result-item" + (String(a.OBJECTID) === selectedKey ? " selected" : "");
+        div.dataset.cat = cat;
+        div.dataset.key = String(a.OBJECTID);
+        const line2 = [cat, a.TREATMENT_TYPE, a.TREATMENT_DETAIL].filter(Boolean).join(" · ");
+        const acStr = a.ACRES ? Number(a.ACRES).toLocaleString("en-US",{maximumFractionDigits:1}) + " ac" : "";
+        const line3 = [a.FISCAL_YEAR, acStr].filter(Boolean).join(" // ");
+        div.innerHTML = `
+          <div class="res-title">${esc(a.MANAGEMENT_AREA || "Unknown Area")}</div>
+          <div class="res-line2">${esc(line2)}</div>
+          <div class="res-line3">${esc(line3)}</div>`;
+        div.addEventListener("mouseenter", () => {
+          hoverOid = String(a.OBJECTID);
+          hoverLayer.removeAll();
+          const q = treatmentLayer.createQuery();
+          q.objectIds      = [a.OBJECTID];
+          q.outFields      = [];
+          q.returnGeometry = true;
+          treatmentLayer.queryFeatures(q).then(res => {
+            if (!res.features.length || hoverOid !== String(a.OBJECTID)) return;
+            hoverLayer.add(new Graphic({
+              geometry: res.features[0].geometry,
+              symbol: { type: "simple-fill", color: [255,165,0,0.15], outline: { type: "simple-line", color: [255,140,0,1], width: 2.5 } }
+            }));
+          }).catch(() => {});
+        });
+        div.addEventListener("mouseleave", () => { hoverOid = null; hoverLayer.removeAll(); });
+        div.addEventListener("click", () => openDetail(f));
+      }
 
-      div.innerHTML = `
-        <div class="res-title">${esc(a.MANAGEMENT_AREA || "Unknown Area")}</div>
-        <div class="res-line2">${esc(line2)}</div>
-        <div class="res-line3">${esc(line3)}</div>`;
-
-      div.addEventListener("mouseenter", () => {
-        hoverOid = a.OBJECTID;
-        hoverLayer.removeAll();
-        const q = treatmentLayer.createQuery();
-        q.objectIds     = [a.OBJECTID];
-        q.outFields     = [];
-        q.returnGeometry = true;
-        treatmentLayer.queryFeatures(q).then(res => {
-          if (!res.features.length || hoverOid !== a.OBJECTID) return;
-          hoverLayer.add(new Graphic({
-            geometry: res.features[0].geometry,
-            symbol: {
-              type: "simple-fill",
-              color: [255, 165, 0, 0.15],
-              outline: { type: "simple-line", color: [255, 140, 0, 1], width: 2.5 }
-            }
-          }));
-        }).catch(() => {});
-      });
-      div.addEventListener("mouseleave", () => {
-        hoverOid = null;
-        hoverLayer.removeAll();
-      });
-      div.addEventListener("click", () => openDetail(f));
       list.appendChild(div);
     });
   }
@@ -874,13 +948,17 @@ require([
       q.returnGeometry      = false;
       q.where               = buildWhere();
       q.orderByFields       = ["FISCAL_YEAR DESC", "COMPLETE_DATE DESC"];
-      const res = await treatmentLayer.queryFeatures(q);
+
+      const [lmRes, invasiveFeats] = await Promise.all([
+        treatmentLayer.queryFeatures(q),
+        queryInvasiveAtPoint(event.mapPoint)
+      ]);
 
       clickMode = true;
       document.getElementById("click-badge").style.display     = "inline";
       document.getElementById("clear-click-btn").style.display = "inline";
 
-      renderResults(res.features);
+      renderResults([...lmRes.features, ...invasiveFeats]);
     } catch(e) { console.error(e); }
   });
 
@@ -895,33 +973,32 @@ require([
 
   // ── Detail Panel ─────────────────────────────────────────
   function openDetail(feature) {
+    if (feature._invasive) { openInvasiveDetail(feature); return; }
+
     const a   = feature.attributes;
     const cat = a.TREATMENT_CATEGORY || "";
 
     previousExtent = view.extent.clone();
-
-    selectedOid = a.OBJECTID;
+    selectedKey = String(a.OBJECTID);
     document.querySelectorAll(".result-item").forEach(el =>
-      el.classList.toggle("selected", +el.dataset.oid === selectedOid));
+      el.classList.toggle("selected", el.dataset.key === selectedKey));
 
     if (detailHighlight) { detailHighlight.remove(); detailHighlight = null; }
     if (treatLV) detailHighlight = treatLV.highlight(a.OBJECTID);
 
     const gq = treatmentLayer.createQuery();
-    gq.objectIds     = [a.OBJECTID];
-    gq.outFields     = [];
+    gq.objectIds      = [a.OBJECTID];
+    gq.outFields      = [];
     gq.returnGeometry = true;
     treatmentLayer.queryFeatures(gq).then(res => {
-      if (res.features.length && selectedOid === a.OBJECTID) {
+      if (res.features.length && selectedKey === String(a.OBJECTID)) {
         view.goTo(res.features[0].geometry.extent.expand(2), { duration: 600 });
       }
     }).catch(() => {});
 
-    document.getElementById("detail-title").textContent    = a.MANAGEMENT_AREA || "Treatment Detail";
+    document.getElementById("detail-title").textContent     = a.MANAGEMENT_AREA || "Treatment Detail";
     document.getElementById("detail-cat-badge").textContent = cat;
-
-    const hdr = document.getElementById("detail-header");
-    hdr.style.borderBottom = `3px solid ${CAT_COLOR[cat] || "#ccc"}`;
+    document.getElementById("detail-header").style.borderBottom = `3px solid ${CAT_COLOR[cat] || "#ccc"}`;
 
     const body = document.getElementById("detail-body");
     body.innerHTML = "";
@@ -932,11 +1009,9 @@ require([
         return v !== null && v !== undefined && v !== "";
       });
       if (!populated.length) return;
-
       const secEl = document.createElement("div");
       secEl.className = "detail-section";
       secEl.innerHTML = `<div class="detail-section-title">${esc(sec.title)}</div>`;
-
       populated.forEach(field => {
         const fv = formatVal(field, a[field]);
         if (!fv) return;
@@ -945,7 +1020,6 @@ require([
         row.innerHTML = `<span class="detail-label">${esc(FIELD_LABEL[field] || field)}</span><span class="detail-value">${esc(fv)}</span>`;
         secEl.appendChild(row);
       });
-
       body.appendChild(secEl);
     });
 
@@ -959,9 +1033,101 @@ require([
     document.getElementById("detail-pane").classList.add("open");
   }
 
+  function openInvasiveDetail(feature) {
+    const a = feature.attributes;
+    const itemKey = "inv_" + a.OBJECTID + "_" + feature._layerType;
+
+    previousExtent = view.extent.clone();
+    selectedKey = itemKey;
+    document.querySelectorAll(".result-item").forEach(el =>
+      el.classList.toggle("selected", el.dataset.key === selectedKey));
+
+    if (detailHighlight) { detailHighlight.remove(); detailHighlight = null; }
+
+    if (feature.geometry) {
+      const ext = feature.geometry.extent || feature.geometry.clone().extent;
+      if (ext) view.goTo(ext.expand(2), { duration: 600 });
+    }
+
+    document.getElementById("detail-title").textContent     = a.MGT_AREA || a.SPCS || "Invasive Treatment";
+    document.getElementById("detail-cat-badge").textContent = "Invasive Plant";
+    document.getElementById("detail-header").style.borderBottom = `3px solid ${INVASIVE_COLOR}`;
+
+    const body = document.getElementById("detail-body");
+    body.innerHTML = "";
+
+    function addSection(title, rows) {
+      const populated = rows.filter(([,v]) => v !== null && v !== undefined && v !== "");
+      if (!populated.length) return;
+      const secEl = document.createElement("div");
+      secEl.className = "detail-section";
+      secEl.innerHTML = `<div class="detail-section-title">${esc(title)}</div>`;
+      populated.forEach(([label, val]) => {
+        const row = document.createElement("div");
+        row.className = "detail-row";
+        row.innerHTML = `<span class="detail-label">${esc(label)}</span><span class="detail-value">${esc(String(val))}</span>`;
+        secEl.appendChild(row);
+      });
+      body.appendChild(secEl);
+    }
+
+    const fmtDate = v => v ? new Date(v).toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"}) : "";
+    const fmtNum  = v => v != null ? Number(v).toLocaleString("en-US",{maximumFractionDigits:1}) : "";
+
+    addSection("Treatment", [
+      ["Species",           a.SPCS],
+      ["Population Status", a.POP_STTS],
+      ["Treatment Method",  a.TRTMNT_MTHD],
+      ["Date",              fmtDate(a.DT)],
+      ["Fiscal Year",       a.FSCL_YR],
+      ["Acres Treated",     a.ACRS != null ? fmtNum(a.ACRS) + " ac" : ""],
+      ["Infested Acres",    a.INFESTED_ACRS != null ? fmtNum(a.INFESTED_ACRS) + " ac" : ""],
+      ["Density",           a.DENS],
+      ["Current Status",    a.CUR]
+    ]);
+
+    addSection("Location", [
+      ["Management Area",    a.MGT_AREA],
+      ["Management Unit",    a.MGT_UNIT],
+      ["Treatment Strategy", a.TRTMNTSTGY]
+    ]);
+
+    addSection("Crew & Time", [
+      ["Data Collector",         a.DATA_COLL_NM],
+      ["Crew",                   a.CREW],
+      ["Applicators",            a.AA],
+      ["Number of Crew",         a.NO_CREW],
+      ["Effective Treatment Time", a.EFFCT_TM],
+      ["Total Hours",            a.TOTL_HRS],
+      ["Budget Center",          a.BDGT_CNTR]
+    ]);
+
+    // Herbicides — only show populated slots
+    const herbRows = [];
+    [[1],[2],[3],[4]].forEach(([n]) => {
+      const name = a[`HRBCID${n}`], amt = a[`HRBCID${n}_AMT`], uom = a[`HRBCID${n}_UOM`], cst = a[`HRBCID${n}_CST`];
+      if (!name && !amt) return;
+      const detail = [name, amt && uom ? `${amt} ${uom}` : amt, cst ? "$" + Number(cst).toLocaleString() : ""].filter(Boolean).join(" · ");
+      herbRows.push([`Herbicide ${n}`, detail]);
+    });
+    if (herbRows.length) addSection("Herbicides", herbRows);
+
+    addSection("Cost", [
+      ["Total Cost", a.TOTL_CST != null ? "$" + Number(a.TOTL_CST).toLocaleString() : ""]
+    ]);
+
+    const comments = [a.CMMT, a.CMMT_1].filter(Boolean).join(" / ");
+    addSection("Notes", [
+      ["Weather",  a.WTHR],
+      ["Comments", comments]
+    ]);
+
+    document.getElementById("detail-pane").classList.add("open");
+  }
+
   function closeDetail() {
     document.getElementById("detail-pane").classList.remove("open");
-    selectedOid = null;
+    selectedKey = null;
     document.querySelectorAll(".result-item").forEach(el => el.classList.remove("selected"));
     if (detailHighlight) { detailHighlight.remove(); detailHighlight = null; }
     if (previousExtent) { view.goTo(previousExtent, { duration: 600 }); previousExtent = null; }
@@ -1113,6 +1279,61 @@ require([
     updateDetailBtn();
     applyFilters();
   });
+
+  async function queryInvasiveAtPoint(point) {
+    const results = [];
+    for (const [layer, type] of [[invLineLayer, "line"], [invAreaLayer, "area"]]) {
+      let geoRes;
+      try {
+        const q = layer.createQuery();
+        q.geometry            = point;
+        q.spatialRelationship = "intersects";
+        q.outFields           = ["*"];
+        q.returnGeometry      = true;
+        geoRes = await layer.queryFeatures(q);
+      } catch(e) { continue; }
+
+      for (const geoFeat of geoRes.features) {
+        const eodId = geoFeat.attributes.IP_EOD_ID;
+        let workAttrs = {}, popGuid = null;
+
+        if (eodId) {
+          try {
+            const wq = invWorkLayer.createQuery();
+            wq.where          = `IP_EOD_ID = '${String(eodId).replace(/'/g,"''")}'`;
+            wq.outFields      = ["*"];
+            wq.returnGeometry = false;
+            const wRes = await invWorkLayer.queryFeatures(wq);
+            if (wRes.features.length) {
+              workAttrs = wRes.features[0].attributes;
+              popGuid   = workAttrs.POP_GUID;
+            }
+          } catch(e) {}
+        }
+
+        let popAttrs = {};
+        if (popGuid) {
+          try {
+            const pq = invPopLayer.createQuery();
+            pq.where          = `GLOBALID = '${String(popGuid).replace(/'/g,"''")}'`;
+            pq.outFields      = ["*"];
+            pq.returnGeometry = false;
+            const pRes = await invPopLayer.queryFeatures(pq);
+            if (pRes.features.length) popAttrs = pRes.features[0].attributes;
+          } catch(e) {}
+        }
+
+        results.push({
+          attributes:   { ...geoFeat.attributes, ...workAttrs, ...popAttrs },
+          geometry:     geoFeat.geometry,
+          _invasive:    true,
+          _layerType:   type,
+          _sourceLayer: layer
+        });
+      }
+    }
+    return results;
+  }
 
   function applyFilters() {
     treatmentLayer.definitionExpression = buildWhere();
