@@ -1022,8 +1022,8 @@ require([
             });
           });
 
-          // Sort invasives by DT descending
-          invFeatures.sort((a, b) => (b.attributes.DT || 0) - (a.attributes.DT || 0));
+          // Sort invasives by work summary date descending
+          invFeatures.sort((a, b) => (b.attributes._workDT ?? b.attributes.DT ?? 0) - (a.attributes._workDT ?? a.attributes.DT ?? 0));
         }
       }
 
@@ -1071,7 +1071,7 @@ require([
       document.getElementById("click-badge").style.display     = "inline";
       document.getElementById("clear-click-btn").style.display = "inline";
 
-      invasiveFeats.sort((a, b) => (b.attributes.DT || 0) - (a.attributes.DT || 0));
+      invasiveFeats.sort((a, b) => (b.attributes._workDT ?? b.attributes.DT ?? 0) - (a.attributes._workDT ?? a.attributes.DT ?? 0));
       renderResults([...lmRes.features, ...invasiveFeats]);
     } catch(e) { console.error(e); }
   });
