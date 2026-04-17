@@ -6,7 +6,7 @@
   <title>Land Treatment History — SJRWMD</title>
   <link rel="stylesheet" href="https://js.arcgis.com/4.30/esri/themes/light/main.css">
   <script src="https://js.arcgis.com/4.30/"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; overflow: hidden; }
@@ -1719,7 +1719,7 @@ require([
 
     try {
       if (fmt === "xlsx") {
-        if (typeof XLSX === "undefined") { alert("Excel export library failed to load. Please try CSV instead."); return; }
+        if (typeof XLSX === "undefined" || !XLSX.utils || !XLSX.utils.book_new) { alert("Excel export library failed to load. Please try CSV instead."); return; }
         const wb = XLSX.utils.book_new();
 
         if (selectedFields.length && currentFeatures.length) {
