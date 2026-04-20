@@ -574,6 +574,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       font-size: 11px; color: #2d7a3a; background: #edf7ef;
       border: 1px solid #b2dfbb; border-radius: 4px; padding: 7px 10px; display: none;
     }
+    #submit-swath-row {
+      display: none; align-items: center; gap: 8px; margin-top: 6px;
+      font-size: 12px; color: #555; background: #fff8e1;
+      border: 1px solid #ffe082; border-radius: 4px; padding: 7px 10px;
+    }
+    #submit-swath-row label { flex: 0 0 auto; }
+    #submit-swath-input { width: 70px; padding: 2px 6px; font-size: 12px; border: 1px solid #ccc; border-radius: 3px; }
+    #submit-swath-row .swath-hint { font-size: 10px; color: #888; }
     #submit-geometry-error {
       font-size: 11px; color: #c0392b; background: #fdf0ef;
       border: 1px solid #f5c6c6; border-radius: 4px; padding: 7px 10px; display: none;
@@ -749,6 +757,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       </div>
       <input type="file" id="submit-file-input" accept=".gpx,.kml,.kmz,.geojson,.json">
       <div id="submit-geometry-info"></div>
+      <div id="submit-swath-row">
+        <label for="submit-swath-input">Line treatment detected. Swath width:</label>
+        <input type="number" id="submit-swath-input" min="1" step="1" placeholder="ft">
+        <span>ft</span>
+        <span class="swath-hint">(enter machine width to buffer into polygon)</span>
+      </div>
       <div id="submit-geometry-error"></div>
     </div>
 
@@ -924,8 +938,9 @@ require([
   "esri/Graphic",
   "esri/core/reactiveUtils",
   "esri/geometry/Polygon",
+  "esri/geometry/Polyline",
   "esri/geometry/geometryEngine"
-], function(esriConfig, esriId, OAuthInfo, Map, MapView, FeatureLayer, GraphicsLayer, Graphic, reactiveUtils, Polygon, geometryEngine) {
+], function(esriConfig, esriId, OAuthInfo, Map, MapView, FeatureLayer, GraphicsLayer, Graphic, reactiveUtils, Polygon, Polyline, geometryEngine) {
 
   const PORTAL = "https://floridaswater.maps.arcgis.com";
   esriConfig.portalUrl = PORTAL;
@@ -2270,6 +2285,7 @@ require([
 
   // ── Submit Panel ─────────────────────────────────────────
   let submitGeometries  = [];
+  let submitLines       = [];   // raw line geometries pending buffer
   let submitCategory    = "";
   let submitPreviewLayer = new GraphicsLayer({ title: "Submit Preview", listMode: "hide" });
 
@@ -2284,9 +2300,12 @@ require([
 
   function clearSubmitGeometry() {
     submitGeometries = [];
+    submitLines      = [];
     submitPreviewLayer.removeAll();
     document.getElementById("submit-geometry-info").style.display  = "none";
+    document.getElementById("submit-swath-row").style.display      = "none";
     document.getElementById("submit-geometry-error").style.display = "none";
+    document.getElementById("submit-swath-input").value = "";
     document.getElementById("sf-acres").value = "";
   }
 
@@ -2331,9 +2350,8 @@ require([
 
   function parseKML(text) {
     const xml = new DOMParser().parseFromString(text, "text/xml");
-    const polys = [];
+    const polys = [], lines = [];
     let date = "";
-    // Try TimeStamp on any Placemark
     const tsEl = xml.querySelector("TimeStamp when");
     if (tsEl) date = isoToDateInput(tsEl.textContent.trim());
     xml.querySelectorAll("Polygon").forEach(poly => {
@@ -2347,27 +2365,40 @@ require([
         .forEach(el => { const r = coordsFromKMLText(el.textContent); if (r.length >= 3) rings.push(r); });
       polys.push(new Polygon({ rings, spatialReference: { wkid: 4326 } }));
     });
-    return { polys, date };
+    xml.querySelectorAll("LineString").forEach(ls => {
+      const coordsEl = ls.querySelector("coordinates");
+      if (!coordsEl) return;
+      const path = coordsFromKMLText(coordsEl.textContent);
+      if (path.length >= 2) lines.push(new Polyline({ paths: [path], spatialReference: { wkid: 4326 } }));
+    });
+    return { polys, lines, date };
   }
 
   function parseGPX(text) {
     const xml = new DOMParser().parseFromString(text, "text/xml");
-    const polys = [];
+    const polys = [], lines = [];
     let date = "";
-    // Try metadata time first, then first trkpt time
     const metaTime = xml.querySelector("metadata time");
     const trkTime  = xml.querySelector("trkpt time, rtept time");
     const rawDate  = metaTime?.textContent || trkTime?.textContent || "";
     if (rawDate) date = isoToDateInput(rawDate.trim());
-    const toRing = pts => {
-      const coords = [...pts].map(pt => [parseFloat(pt.getAttribute("lon")), parseFloat(pt.getAttribute("lat"))]).filter(c => !isNaN(c[0]));
-      if (coords.length < 3) return null;
-      if (coords[0][0] !== coords[coords.length-1][0]) coords.push(coords[0]);
-      return coords;
-    };
-    xml.querySelectorAll("trk").forEach(t => { const r = toRing(t.querySelectorAll("trkpt")); if (r) polys.push(new Polygon({ rings: [r], spatialReference: { wkid: 4326 } })); });
-    xml.querySelectorAll("rte").forEach(t => { const r = toRing(t.querySelectorAll("rtept")); if (r) polys.push(new Polygon({ rings: [r], spatialReference: { wkid: 4326 } })); });
-    return { polys, date };
+    const toCoords = pts => [...pts].map(pt => [parseFloat(pt.getAttribute("lon")), parseFloat(pt.getAttribute("lat"))]).filter(c => !isNaN(c[0]));
+    const isClosed = coords => coords.length >= 3 &&
+      Math.abs(coords[0][0] - coords[coords.length-1][0]) < 0.00001 &&
+      Math.abs(coords[0][1] - coords[coords.length-1][1]) < 0.00001;
+    xml.querySelectorAll("trk").forEach(t => {
+      const coords = toCoords(t.querySelectorAll("trkpt"));
+      if (coords.length < 2) return;
+      if (isClosed(coords)) polys.push(new Polygon({ rings: [coords], spatialReference: { wkid: 4326 } }));
+      else lines.push(new Polyline({ paths: [coords], spatialReference: { wkid: 4326 } }));
+    });
+    xml.querySelectorAll("rte").forEach(t => {
+      const coords = toCoords(t.querySelectorAll("rtept"));
+      if (coords.length < 2) return;
+      if (isClosed(coords)) polys.push(new Polygon({ rings: [coords], spatialReference: { wkid: 4326 } }));
+      else lines.push(new Polyline({ paths: [coords], spatialReference: { wkid: 4326 } }));
+    });
+    return { polys, lines, date };
   }
 
   async function parseKMZ(buffer) {
@@ -2429,7 +2460,7 @@ require([
 
   function parseGeoJSON(text) {
     const gj = JSON.parse(text);
-    const polys = [];
+    const polys = [], lines = [];
     let date = "";
     const feats = gj.type === "FeatureCollection" ? gj.features
                 : gj.type === "Feature"            ? [gj]
@@ -2437,59 +2468,37 @@ require([
     feats.forEach(f => {
       const g = f.geometry;
       if (!g) return;
-      if      (g.type === "Polygon")      polys.push(new Polygon({ rings: g.coordinates, spatialReference: { wkid: 4326 } }));
-      else if (g.type === "MultiPolygon") g.coordinates.forEach(r => polys.push(new Polygon({ rings: r, spatialReference: { wkid: 4326 } })));
-      // Try common date property names
+      if      (g.type === "Polygon")           polys.push(new Polygon({ rings: g.coordinates, spatialReference: { wkid: 4326 } }));
+      else if (g.type === "MultiPolygon")      g.coordinates.forEach(r => polys.push(new Polygon({ rings: r, spatialReference: { wkid: 4326 } })));
+      else if (g.type === "LineString")        lines.push(new Polyline({ paths: [g.coordinates], spatialReference: { wkid: 4326 } }));
+      else if (g.type === "MultiLineString")   lines.push(new Polyline({ paths: g.coordinates, spatialReference: { wkid: 4326 } }));
       if (!date && f.properties) {
         const raw = f.properties.date || f.properties.Date || f.properties.timestamp || f.properties.time || "";
         if (raw) date = isoToDateInput(String(raw));
       }
     });
-    return { polys, date };
+    return { polys, lines, date };
   }
 
   async function handleSubmitFile(file) {
     clearSubmitGeometry();
-    const errEl  = document.getElementById("submit-geometry-error");
-    const infoEl = document.getElementById("submit-geometry-info");
+    const errEl      = document.getElementById("submit-geometry-error");
+    const infoEl     = document.getElementById("submit-geometry-info");
+    const swathRow   = document.getElementById("submit-swath-row");
     try {
       const ext = file.name.split(".").pop().toLowerCase();
-      let polys = [], date = "";
+      let polys = [], lines = [], date = "";
 
-      // Peek at first 4 bytes — ZIP magic bytes (PK\x03\x04) mean treat as KMZ
-      // regardless of extension (ArcGIS Pro sometimes exports KMZ with .kml extension)
       const header = new Uint8Array(await file.slice(0, 4).arrayBuffer());
       const isZip  = header[0] === 0x50 && header[1] === 0x4B && header[2] === 0x03 && header[3] === 0x04;
 
-      if      (isZip)                              ({ polys, date } = await parseKMZ(await file.arrayBuffer()));
-      else if (ext === "gpx")                      ({ polys, date } = parseGPX(await file.text()));
-      else if (ext === "kml")                      ({ polys, date } = parseKML(await file.text()));
-      else if (ext === "geojson" || ext === "json") ({ polys, date } = parseGeoJSON(await file.text()));
+      if      (isZip)                               ({ polys, lines, date } = await parseKMZ(await file.arrayBuffer()));
+      else if (ext === "gpx")                       ({ polys, lines, date } = parseGPX(await file.text()));
+      else if (ext === "kml")                       ({ polys, lines, date } = parseKML(await file.text()));
+      else if (ext === "geojson" || ext === "json") ({ polys, lines, date } = parseGeoJSON(await file.text()));
       else throw new Error("Unsupported file type. Use .gpx, .kml, .kmz, or .geojson");
 
-      if (!polys.length) throw new Error("No polygon geometry found in file.");
-
-      submitGeometries = polys;
-      submitPreviewLayer.removeAll();
-      polys.forEach(p => submitPreviewLayer.add(new Graphic({
-        geometry: p,
-        symbol: { type: "simple-fill", color: [45,122,58,0.2], outline: { type: "simple-line", color: [45,122,58,1], width: 2 } }
-      })));
-
-      // Zoom to uploaded geometry
-      const exts = polys.map(p => p.extent).filter(Boolean);
-      if (exts.length) {
-        let ext = exts[0].clone();
-        exts.slice(1).forEach(e => { ext = ext.union(e); });
-        view.goTo(ext.expand(1.5), { duration: 600 });
-      }
-
-      // Calculate acres
-      const totalAcres = polys.reduce((sum, p) => {
-        const a = geometryEngine.geodesicArea(p, "acres");
-        return sum + Math.abs(a);
-      }, 0);
-      document.getElementById("sf-acres").value = totalAcres.toFixed(1);
+      if (!polys.length && !lines.length) throw new Error("No polygon or line geometry found in file.");
 
       // Auto-fill date if found in file
       if (date) {
@@ -2497,29 +2506,83 @@ require([
         document.getElementById("sf-fiscal-year").value   = calcFiscalYear(date);
       }
 
-      // Auto-fill Management Area from spatial intersect
-      try {
-        const unionGeom = polys.length === 1 ? polys[0] : geometryEngine.union(polys);
-        const mq = mgmtLayer.createQuery();
-        mq.geometry = unionGeom; mq.spatialRelationship = "intersects";
-        mq.outFields = ["CONSERVATION_AREA"]; mq.returnGeometry = false;
-        const mRes = await mgmtLayer.queryFeatures(mq);
-        if (mRes.features.length) {
-          const areaName = mRes.features[0].attributes.CONSERVATION_AREA;
-          const areaSel  = document.getElementById("sf-area");
-          const match    = [...areaSel.options].find(o => o.value === areaName);
-          if (match) areaSel.value = areaName;
-        }
-      } catch(e) { /* non-fatal */ }
+      if (polys.length) {
+        await finishPolyUpload(polys);
+      } else {
+        // Line-only file — store lines and ask for swath width
+        submitLines = lines;
+        swathRow.style.display = "flex";
+        errEl.style.display    = "none";
+        infoEl.textContent = `${lines.length} line segment${lines.length !== 1 ? "s" : ""} loaded · enter swath width to continue`;
+        infoEl.style.display = "block";
+        // Preview raw lines on map
+        submitPreviewLayer.removeAll();
+        lines.forEach(l => submitPreviewLayer.add(new Graphic({
+          geometry: l,
+          symbol: { type: "simple-line", color: [45,122,58,1], width: 2, style: "dash" }
+        })));
+        const exts = lines.map(l => l.extent).filter(Boolean);
+        if (exts.length) { let e = exts[0].clone(); exts.slice(1).forEach(x => { e = e.union(x); }); view.goTo(e.expand(2), { duration: 600 }); }
+        document.getElementById("submit-swath-input").focus();
+      }
 
-      infoEl.textContent = `${polys.length} polygon${polys.length !== 1 ? "s" : ""} loaded · ${totalAcres.toFixed(1)} ac total`;
-      infoEl.style.display = "block";
-      errEl.style.display  = "none";
-      checkSubmitReady();
+      errEl.style.display = "none";
     } catch(e) {
       errEl.textContent   = "Error: " + e.message;
       errEl.style.display = "block";
     }
+  }
+
+  async function applySwathBuffer(swathFt) {
+    const errEl  = document.getElementById("submit-geometry-error");
+    const infoEl = document.getElementById("submit-geometry-info");
+    if (!submitLines.length || !(swathFt > 0)) return;
+    try {
+      const halfFt = swathFt / 2;
+      const buffered = submitLines
+        .map(l => geometryEngine.geodesicBuffer(l, halfFt, "feet"))
+        .filter(Boolean);
+      if (!buffered.length) throw new Error("Buffering produced no geometry.");
+      await finishPolyUpload(buffered);
+    } catch(e) {
+      errEl.textContent   = "Buffer error: " + e.message;
+      errEl.style.display = "block";
+    }
+  }
+
+  async function finishPolyUpload(polys) {
+    const infoEl = document.getElementById("submit-geometry-info");
+    submitGeometries = polys;
+    submitPreviewLayer.removeAll();
+    polys.forEach(p => submitPreviewLayer.add(new Graphic({
+      geometry: p,
+      symbol: { type: "simple-fill", color: [45,122,58,0.2], outline: { type: "simple-line", color: [45,122,58,1], width: 2 } }
+    })));
+
+    const exts = polys.map(p => p.extent).filter(Boolean);
+    if (exts.length) { let e = exts[0].clone(); exts.slice(1).forEach(x => { e = e.union(x); }); view.goTo(e.expand(1.5), { duration: 600 }); }
+
+    const totalAcres = polys.reduce((sum, p) => sum + Math.abs(geometryEngine.geodesicArea(p, "acres")), 0);
+    document.getElementById("sf-acres").value = totalAcres.toFixed(1);
+
+    try {
+      const unionGeom = polys.length === 1 ? polys[0] : geometryEngine.union(polys);
+      const mq = mgmtLayer.createQuery();
+      mq.geometry = unionGeom; mq.spatialRelationship = "intersects";
+      mq.outFields = ["CONSERVATION_AREA"]; mq.returnGeometry = false;
+      const mRes = await mgmtLayer.queryFeatures(mq);
+      if (mRes.features.length) {
+        const areaName = mRes.features[0].attributes.CONSERVATION_AREA;
+        const areaSel  = document.getElementById("sf-area");
+        const match    = [...areaSel.options].find(o => o.value === areaName);
+        if (match) areaSel.value = areaName;
+      }
+    } catch(e) { /* non-fatal */ }
+
+    const lineLabel = submitLines.length ? " (buffered from lines)" : "";
+    infoEl.textContent = `${polys.length} polygon${polys.length !== 1 ? "s" : ""} loaded · ${totalAcres.toFixed(1)} ac total${lineLabel}`;
+    infoEl.style.display = "block";
+    checkSubmitReady();
   }
 
   // ── Form helpers ─────────────────────────────────────────
@@ -2626,6 +2689,10 @@ require([
   const fileInput = document.getElementById("submit-file-input");
   dropZone.addEventListener("click", () => fileInput.click());
   fileInput.addEventListener("change", e => { if (e.target.files[0]) handleSubmitFile(e.target.files[0]); });
+  document.getElementById("submit-swath-input").addEventListener("change", e => {
+    const ft = parseFloat(e.target.value);
+    if (ft > 0 && submitLines.length) applySwathBuffer(ft);
+  });
   dropZone.addEventListener("dragover",  e => { e.preventDefault(); dropZone.classList.add("dragover"); });
   dropZone.addEventListener("dragleave", ()  => dropZone.classList.remove("dragover"));
   dropZone.addEventListener("drop", e => {
