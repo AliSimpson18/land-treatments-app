@@ -2373,34 +2373,57 @@ require([
   async function parseKMZ(buffer) {
     const bytes = new Uint8Array(buffer);
     const dv    = new DataView(buffer);
-    let kmlText = null;
-    let i = 0;
-    while (i < bytes.length - 30) {
-      if (dv.getUint32(i, true) !== 0x04034b50) { i++; continue; }
-      const comp     = dv.getUint16(i + 8, true);
-      const compSize = dv.getUint32(i + 18, true);
-      const fnLen    = dv.getUint16(i + 26, true);
-      const exLen    = dv.getUint16(i + 28, true);
-      const fn       = new TextDecoder().decode(bytes.slice(i + 30, i + 30 + fnLen));
-      const dataStart = i + 30 + fnLen + exLen;
-      if (fn.endsWith(".kml")) {
-        const chunk = bytes.slice(dataStart, dataStart + compSize);
-        if (comp === 0) {
-          kmlText = new TextDecoder().decode(chunk);
-        } else {
-          const ds = new DecompressionStream("deflate-raw");
-          const w  = ds.writable.getWriter(); w.write(chunk); w.close();
-          const chunks = []; const r = ds.readable.getReader();
-          while (true) { const { done, value } = await r.read(); if (done) break; chunks.push(value); }
-          const out = new Uint8Array(chunks.reduce((s,c)=>s+c.length,0));
-          let off = 0; chunks.forEach(c=>{out.set(c,off);off+=c.length;});
-          kmlText = new TextDecoder().decode(out);
-        }
-        break;
-      }
-      i = dataStart + compSize;
+
+    // Read central directory — local file headers may have compSize=0 when a
+    // data descriptor is used (common in ArcGIS Pro exports), so we must get
+    // the true compressed size from the central directory at the end of the file.
+    let eocdOff = -1;
+    for (let i = bytes.length - 22; i >= 0; i--) {
+      if (dv.getUint32(i, true) === 0x06054b50) { eocdOff = i; break; }
     }
-    if (!kmlText) throw new Error("No KML file found inside KMZ archive.");
+    if (eocdOff === -1) throw new Error("Not a valid ZIP/KMZ file.");
+
+    const cdOff  = dv.getUint32(eocdOff + 16, true);
+    const cdSize = dv.getUint32(eocdOff + 12, true);
+
+    let kmlEntry = null;
+    let pos = cdOff;
+    while (pos < cdOff + cdSize) {
+      if (dv.getUint32(pos, true) !== 0x02014b50) break;
+      const comp        = dv.getUint16(pos + 10, true);
+      const compSize    = dv.getUint32(pos + 20, true);
+      const fnLen       = dv.getUint16(pos + 28, true);
+      const extraLen    = dv.getUint16(pos + 30, true);
+      const commentLen  = dv.getUint16(pos + 32, true);
+      const localOff    = dv.getUint32(pos + 42, true);
+      const fn = new TextDecoder().decode(bytes.slice(pos + 46, pos + 46 + fnLen));
+      if (fn.endsWith(".kml") && (!kmlEntry || fn === "doc.kml")) {
+        kmlEntry = { comp, compSize, localOff };
+      }
+      pos += 46 + fnLen + extraLen + commentLen;
+    }
+    if (!kmlEntry) throw new Error("No KML file found inside KMZ archive.");
+
+    // Locate actual data using the local file header at localOff
+    const lh = kmlEntry.localOff;
+    if (dv.getUint32(lh, true) !== 0x04034b50) throw new Error("Invalid local file header in KMZ.");
+    const lfnLen    = dv.getUint16(lh + 26, true);
+    const lexLen    = dv.getUint16(lh + 28, true);
+    const dataStart = lh + 30 + lfnLen + lexLen;
+    const chunk     = bytes.slice(dataStart, dataStart + kmlEntry.compSize);
+
+    let kmlText;
+    if (kmlEntry.comp === 0) {
+      kmlText = new TextDecoder().decode(chunk);
+    } else {
+      const ds = new DecompressionStream("deflate-raw");
+      const w  = ds.writable.getWriter(); w.write(chunk); w.close();
+      const chunks = []; const r = ds.readable.getReader();
+      while (true) { const { done, value } = await r.read(); if (done) break; chunks.push(value); }
+      const out = new Uint8Array(chunks.reduce((s,c)=>s+c.length,0));
+      let off = 0; chunks.forEach(c=>{out.set(c,off);off+=c.length;});
+      kmlText = new TextDecoder().decode(out);
+    }
     return parseKML(kmlText);
   }
 
