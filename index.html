@@ -2323,9 +2323,19 @@ require([
     }).filter(c => !isNaN(c[0]) && !isNaN(c[1]));
   }
 
+  function isoToDateInput(str) {
+    if (!str) return "";
+    const d = new Date(str);
+    return isNaN(d) ? "" : d.toISOString().slice(0, 10);
+  }
+
   function parseKML(text) {
     const xml = new DOMParser().parseFromString(text, "text/xml");
     const polys = [];
+    let date = "";
+    // Try TimeStamp on any Placemark
+    const tsEl = xml.querySelector("TimeStamp when");
+    if (tsEl) date = isoToDateInput(tsEl.textContent.trim());
     xml.querySelectorAll("Polygon").forEach(poly => {
       const outerEl = poly.querySelector("outerBoundaryIs coordinates") ||
                       poly.querySelector("outerBoundaryIs LinearRing coordinates");
@@ -2337,12 +2347,18 @@ require([
         .forEach(el => { const r = coordsFromKMLText(el.textContent); if (r.length >= 3) rings.push(r); });
       polys.push(new Polygon({ rings, spatialReference: { wkid: 4326 } }));
     });
-    return polys;
+    return { polys, date };
   }
 
   function parseGPX(text) {
     const xml = new DOMParser().parseFromString(text, "text/xml");
     const polys = [];
+    let date = "";
+    // Try metadata time first, then first trkpt time
+    const metaTime = xml.querySelector("metadata time");
+    const trkTime  = xml.querySelector("trkpt time, rtept time");
+    const rawDate  = metaTime?.textContent || trkTime?.textContent || "";
+    if (rawDate) date = isoToDateInput(rawDate.trim());
     const toRing = pts => {
       const coords = [...pts].map(pt => [parseFloat(pt.getAttribute("lon")), parseFloat(pt.getAttribute("lat"))]).filter(c => !isNaN(c[0]));
       if (coords.length < 3) return null;
@@ -2351,7 +2367,7 @@ require([
     };
     xml.querySelectorAll("trk").forEach(t => { const r = toRing(t.querySelectorAll("trkpt")); if (r) polys.push(new Polygon({ rings: [r], spatialReference: { wkid: 4326 } })); });
     xml.querySelectorAll("rte").forEach(t => { const r = toRing(t.querySelectorAll("rtept")); if (r) polys.push(new Polygon({ rings: [r], spatialReference: { wkid: 4326 } })); });
-    return polys;
+    return { polys, date };
   }
 
   async function parseKMZ(buffer) {
@@ -2391,6 +2407,7 @@ require([
   function parseGeoJSON(text) {
     const gj = JSON.parse(text);
     const polys = [];
+    let date = "";
     const feats = gj.type === "FeatureCollection" ? gj.features
                 : gj.type === "Feature"            ? [gj]
                 : [{ geometry: gj }];
@@ -2399,8 +2416,13 @@ require([
       if (!g) return;
       if      (g.type === "Polygon")      polys.push(new Polygon({ rings: g.coordinates, spatialReference: { wkid: 4326 } }));
       else if (g.type === "MultiPolygon") g.coordinates.forEach(r => polys.push(new Polygon({ rings: r, spatialReference: { wkid: 4326 } })));
+      // Try common date property names
+      if (!date && f.properties) {
+        const raw = f.properties.date || f.properties.Date || f.properties.timestamp || f.properties.time || "";
+        if (raw) date = isoToDateInput(String(raw));
+      }
     });
-    return polys;
+    return { polys, date };
   }
 
   async function handleSubmitFile(file) {
@@ -2409,11 +2431,11 @@ require([
     const infoEl = document.getElementById("submit-geometry-info");
     try {
       const ext = file.name.split(".").pop().toLowerCase();
-      let polys = [];
-      if      (ext === "gpx")                 polys = parseGPX(await file.text());
-      else if (ext === "kml")                 polys = parseKML(await file.text());
-      else if (ext === "kmz")                 polys = await parseKMZ(await file.arrayBuffer());
-      else if (ext === "geojson" || ext === "json") polys = parseGeoJSON(await file.text());
+      let polys = [], date = "";
+      if      (ext === "gpx")                      ({ polys, date } = parseGPX(await file.text()));
+      else if (ext === "kml")                      ({ polys, date } = parseKML(await file.text()));
+      else if (ext === "kmz")                      ({ polys, date } = await parseKMZ(await file.arrayBuffer()));
+      else if (ext === "geojson" || ext === "json") ({ polys, date } = parseGeoJSON(await file.text()));
       else throw new Error("Unsupported file type. Use .gpx, .kml, .kmz, or .geojson");
 
       if (!polys.length) throw new Error("No polygon geometry found in file.");
@@ -2439,6 +2461,27 @@ require([
         return sum + Math.abs(a);
       }, 0);
       document.getElementById("sf-acres").value = totalAcres.toFixed(1);
+
+      // Auto-fill date if found in file
+      if (date) {
+        document.getElementById("sf-complete-date").value = date;
+        document.getElementById("sf-fiscal-year").value   = calcFiscalYear(date);
+      }
+
+      // Auto-fill Management Area from spatial intersect
+      try {
+        const unionGeom = polys.length === 1 ? polys[0] : geometryEngine.union(polys);
+        const mq = mgmtLayer.createQuery();
+        mq.geometry = unionGeom; mq.spatialRelationship = "intersects";
+        mq.outFields = ["CONSERVATION_AREA"]; mq.returnGeometry = false;
+        const mRes = await mgmtLayer.queryFeatures(mq);
+        if (mRes.features.length) {
+          const areaName = mRes.features[0].attributes.CONSERVATION_AREA;
+          const areaSel  = document.getElementById("sf-area");
+          const match    = [...areaSel.options].find(o => o.value === areaName);
+          if (match) areaSel.value = areaName;
+        }
+      } catch(e) { /* non-fatal */ }
 
       infoEl.textContent = `${polys.length} polygon${polys.length !== 1 ? "s" : ""} loaded · ${totalAcres.toFixed(1)} ac total`;
       infoEl.style.display = "block";
