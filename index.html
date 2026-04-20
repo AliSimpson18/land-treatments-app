@@ -777,7 +777,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       </div>
       <div class="form-row">
         <label for="sf-detail">Treatment Detail</label>
-        <input type="text" id="sf-detail" class="form-input" placeholder="e.g. Prescribed Burn, Roller Chop">
+        <select id="sf-detail" class="form-input"><option value="">— Select —</option></select>
       </div>
       <div class="form-row">
         <label for="sf-status">Treatment Status</label>
@@ -2569,11 +2569,38 @@ require([
       document.querySelectorAll(".cat-fields").forEach(el => el.classList.remove("active"));
       const catEl = document.getElementById("sf-" + cat.toLowerCase() + "-fields");
       if (catEl) catEl.classList.add("active");
+      document.getElementById("sf-type").value = "";
+      document.getElementById("sf-detail").innerHTML = '<option value="">— Select —</option>';
+      refreshSubmitDetailOptions();
       checkSubmitReady();
     });
   });
 
   document.getElementById("sf-area").addEventListener("change", checkSubmitReady);
+
+  async function refreshSubmitDetailOptions() {
+    const sel = document.getElementById("sf-detail");
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">— Select —</option>';
+    const conditions = [];
+    if (submitCategory)                               conditions.push(`TREATMENT_CATEGORY = '${submitCategory}'`);
+    if (document.getElementById("sf-type").value)    conditions.push(`TREATMENT_TYPE = '${document.getElementById("sf-type").value.replace(/'/g,"''")}'`);
+    if (!conditions.length) return;
+    try {
+      const q = treatmentLayer.createQuery();
+      q.where = conditions.join(" AND ");
+      q.outFields = ["TREATMENT_DETAIL"];
+      q.returnGeometry = false; q.returnDistinctValues = true; q.orderByFields = ["TREATMENT_DETAIL"];
+      const res = await treatmentLayer.queryFeatures(q);
+      const vals = res.features.map(f => f.attributes.TREATMENT_DETAIL).filter(Boolean);
+      vals.forEach(v => { const o = document.createElement("option"); o.value = o.textContent = v; if (v === cur) o.selected = true; sel.appendChild(o); });
+    } catch(e) { console.warn("Detail options error:", e); }
+  }
+
+  document.getElementById("sf-type").addEventListener("change", () => {
+    document.getElementById("sf-detail").innerHTML = '<option value="">— Select —</option>';
+    refreshSubmitDetailOptions();
+  });
 
   document.getElementById("sf-complete-date").addEventListener("change", e => {
     document.getElementById("sf-fiscal-year").value = calcFiscalYear(e.target.value);
