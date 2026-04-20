@@ -520,6 +520,98 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     }
     #export-do-btn:hover { background: #154060; }
 
+    /* ── Submit Panel ───────────────────────────── */
+    #submit-btn {
+      font-size: 11px; padding: 4px 9px;
+      background: #2d7a3a; color: white;
+      border: none; border-radius: 3px; cursor: pointer; margin-left: 6px;
+    }
+    #submit-btn:hover { background: #236130; }
+    #map-panel { position: relative; }
+    #submit-panel {
+      position: absolute; top: 0; right: 0; bottom: 0; width: 420px;
+      background: white; z-index: 20;
+      display: flex; flex-direction: column;
+      transform: translateX(100%); transition: transform 0.3s ease;
+      border-left: 1px solid #d0d0d0; box-shadow: -4px 0 16px rgba(0,0,0,0.15);
+    }
+    #submit-panel.open { transform: translateX(0); }
+    #submit-panel-header {
+      background: #1a4f72; color: white; padding: 13px 16px 11px;
+      display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
+    }
+    #submit-panel-header h2 { font-size: 14px; font-weight: 600; }
+    #submit-panel-close {
+      background: none; border: 1px solid rgba(255,255,255,0.4); color: white;
+      border-radius: 3px; cursor: pointer; padding: 2px 7px; font-size: 14px;
+    }
+    #submit-panel-body { flex: 1; overflow-y: auto; padding: 14px 16px; }
+    .submit-section { margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid #ebebeb; }
+    .submit-section:last-child { border-bottom: none; }
+    .submit-section-title {
+      font-size: 10px; font-weight: 700; color: #888;
+      text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 10px;
+    }
+    .form-row { margin-bottom: 8px; }
+    .form-row label { display: block; font-size: 11px; font-weight: 600; color: #555; margin-bottom: 3px; }
+    .form-row label.required::after { content: " *"; color: #c0392b; }
+    .form-input {
+      width: 100%; padding: 5px 8px; border: 1px solid #ccc; border-radius: 4px;
+      font-size: 12px; font-family: inherit; color: #333; background: white;
+    }
+    .form-input:focus { outline: none; border-color: #1a4f72; }
+    textarea.form-input { resize: vertical; min-height: 60px; }
+    .form-row-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .file-drop-zone {
+      border: 2px dashed #ccc; border-radius: 6px; padding: 20px;
+      text-align: center; cursor: pointer; transition: border-color 0.15s, background 0.15s; margin-bottom: 8px;
+    }
+    .file-drop-zone:hover, .file-drop-zone.dragover { border-color: #1a4f72; background: #f0f5ff; }
+    .file-drop-zone p { font-size: 11px; color: #888; margin-top: 4px; }
+    .file-drop-zone strong { font-size: 13px; color: #555; }
+    #submit-file-input { display: none; }
+    #submit-geometry-info {
+      font-size: 11px; color: #2d7a3a; background: #edf7ef;
+      border: 1px solid #b2dfbb; border-radius: 4px; padding: 7px 10px; display: none;
+    }
+    #submit-geometry-error {
+      font-size: 11px; color: #c0392b; background: #fdf0ef;
+      border: 1px solid #f5c6c6; border-radius: 4px; padding: 7px 10px; display: none;
+    }
+    .submit-cat-pills { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+    .submit-cat-pill {
+      padding: 4px 12px; border-radius: 20px; border: 1.5px solid;
+      cursor: pointer; font-size: 12px; font-weight: 500; opacity: 0.45;
+      user-select: none; transition: all 0.15s;
+    }
+    .submit-cat-pill.active { opacity: 1; }
+    .submit-cat-pill[data-cat="Forestry"]   { border-color: #639922; color: #639922; }
+    .submit-cat-pill[data-cat="Forestry"].active   { background: #639922; color: white; }
+    .submit-cat-pill[data-cat="Fire"]       { border-color: #E24B4A; color: #E24B4A; }
+    .submit-cat-pill[data-cat="Fire"].active       { background: #E24B4A; color: white; }
+    .submit-cat-pill[data-cat="Mechanical"] { border-color: #378ADD; color: #378ADD; }
+    .submit-cat-pill[data-cat="Mechanical"].active { background: #378ADD; color: white; }
+    .submit-cat-pill[data-cat="Chemical"]   { border-color: #7F77DD; color: #7F77DD; }
+    .submit-cat-pill[data-cat="Chemical"].active   { background: #7F77DD; color: white; }
+    .cat-fields { display: none; }
+    .cat-fields.active { display: block; }
+    #submit-panel-footer {
+      padding: 12px 16px; border-top: 1px solid #e0e0e0; background: white;
+      flex-shrink: 0; display: flex; gap: 8px; align-items: center;
+    }
+    #submit-status { font-size: 12px; flex: 1; }
+    #submit-do-btn {
+      padding: 7px 18px; background: #2d7a3a; color: white;
+      border: none; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    #submit-do-btn:hover { background: #236130; }
+    #submit-do-btn:disabled { background: #aaa; cursor: not-allowed; }
+    #submit-cancel-btn {
+      padding: 7px 14px; background: none; border: 1px solid #ccc;
+      border-radius: 4px; font-size: 13px; cursor: pointer; color: #555;
+    }
+    #submit-cancel-btn:hover { background: #f5f5f5; }
+
     #map-tip {
       position: absolute;
       bottom: 28px;
@@ -544,7 +636,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
   <div id="app-header">
     <h1>Land Treatment History</h1>
-    <p>SJRWMD &middot; <span id="total-count">—</span> records</p>
+    <p>SJRWMD &middot; <span id="total-count">—</span> records <button id="submit-btn">+ Submit Treatment</button></p>
   </div>
 
   <!--Filters -->
@@ -641,6 +733,185 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   </div>
 </div>
 
+<!-- ══ Submit Panel ═══════════════════════════════════════ -->
+<div id="submit-panel">
+  <div id="submit-panel-header">
+    <h2>Submit Treatment</h2>
+    <button id="submit-panel-close">&times;</button>
+  </div>
+  <div id="submit-panel-body">
+
+    <div class="submit-section">
+      <div class="submit-section-title">1. Upload Geometry</div>
+      <div class="file-drop-zone" id="submit-drop-zone">
+        <strong>Drop file here or click to browse</strong>
+        <p>Accepted: .gpx &nbsp;·&nbsp; .kml &nbsp;·&nbsp; .kmz &nbsp;·&nbsp; .geojson</p>
+      </div>
+      <input type="file" id="submit-file-input" accept=".gpx,.kml,.kmz,.geojson,.json">
+      <div id="submit-geometry-info"></div>
+      <div id="submit-geometry-error"></div>
+    </div>
+
+    <div class="submit-section">
+      <div class="submit-section-title">2. Treatment Information</div>
+      <div class="form-row">
+        <label class="required">Category</label>
+        <div class="submit-cat-pills">
+          <div class="submit-cat-pill" data-cat="Forestry">Forestry</div>
+          <div class="submit-cat-pill" data-cat="Fire">Fire</div>
+          <div class="submit-cat-pill" data-cat="Mechanical">Mechanical</div>
+          <div class="submit-cat-pill" data-cat="Chemical">Chemical</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <label class="required" for="sf-area">Management Area</label>
+        <select id="sf-area" class="form-input"><option value="">— Select —</option></select>
+      </div>
+      <div class="form-row">
+        <label for="sf-region">Region</label>
+        <select id="sf-region" class="form-input"><option value="">— Select —</option></select>
+      </div>
+      <div class="form-row">
+        <label for="sf-type">Treatment Type</label>
+        <select id="sf-type" class="form-input"><option value="">— Select —</option></select>
+      </div>
+      <div class="form-row">
+        <label for="sf-detail">Treatment Detail</label>
+        <input type="text" id="sf-detail" class="form-input" placeholder="e.g. Prescribed Burn, Roller Chop">
+      </div>
+      <div class="form-row">
+        <label for="sf-status">Treatment Status</label>
+        <select id="sf-status" class="form-input">
+          <option value="">— Select —</option>
+          <option value="Complete">Complete</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Pending">Pending</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="sf-objective">Objective</label>
+        <select id="sf-objective" class="form-input"><option value="">— Select —</option></select>
+      </div>
+    </div>
+
+    <div class="submit-section">
+      <div class="submit-section-title">3. Dates &amp; Area</div>
+      <div class="form-row-grid">
+        <div class="form-row">
+          <label for="sf-start-date">Start Date</label>
+          <input type="date" id="sf-start-date" class="form-input">
+        </div>
+        <div class="form-row">
+          <label for="sf-complete-date">Complete Date</label>
+          <input type="date" id="sf-complete-date" class="form-input">
+        </div>
+      </div>
+      <div class="form-row-grid">
+        <div class="form-row">
+          <label for="sf-fiscal-year">Fiscal Year</label>
+          <input type="text" id="sf-fiscal-year" class="form-input" placeholder="Auto-calculated" readonly>
+        </div>
+        <div class="form-row">
+          <label for="sf-acres">Acres</label>
+          <input type="text" id="sf-acres" class="form-input" placeholder="Auto from geometry" readonly>
+        </div>
+      </div>
+    </div>
+
+    <div class="submit-section">
+      <div class="submit-section-title">4. Administration</div>
+      <div class="form-row">
+        <label for="sf-treated-by">Treated By</label>
+        <select id="sf-treated-by" class="form-input"><option value="">— Select —</option></select>
+      </div>
+      <div class="form-row">
+        <label for="sf-contractor">Contractor</label>
+        <input type="text" id="sf-contractor" class="form-input">
+      </div>
+      <div class="form-row-grid">
+        <div class="form-row">
+          <label for="sf-contract-num">Contract Number</label>
+          <input type="text" id="sf-contract-num" class="form-input">
+        </div>
+        <div class="form-row">
+          <label for="sf-fund-source">Fund Source</label>
+          <select id="sf-fund-source" class="form-input"><option value="">— Select —</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <label for="sf-total-cost">Total Cost ($)</label>
+        <input type="number" id="sf-total-cost" class="form-input" min="0" step="0.01">
+      </div>
+    </div>
+
+    <!-- Forestry -->
+    <div class="submit-section cat-fields" id="sf-forestry-fields">
+      <div class="submit-section-title">Forestry Details</div>
+      <div class="form-row-grid">
+        <div class="form-row"><label for="sf-sale-name">Sale Name</label><input type="text" id="sf-sale-name" class="form-input"></div>
+        <div class="form-row"><label for="sf-stand-id">Stand ID</label><input type="text" id="sf-stand-id" class="form-input"></div>
+      </div>
+      <div class="form-row"><label for="sf-silv-type">Silviculture Type</label><input type="text" id="sf-silv-type" class="form-input"></div>
+      <div class="form-row"><label for="sf-species">Species</label><input type="text" id="sf-species" class="form-input"></div>
+      <div class="form-row"><label for="sf-site-prep">Site Prep Method</label><input type="text" id="sf-site-prep" class="form-input"></div>
+      <div class="form-row"><label for="sf-herb-rx">Herbicide Rx</label><input type="text" id="sf-herb-rx" class="form-input"></div>
+      <div class="form-row"><label for="sf-herb-app-date">Herb Application Date</label><input type="date" id="sf-herb-app-date" class="form-input"></div>
+      <div class="form-row-grid">
+        <div class="form-row"><label for="sf-seedling-type">Seedling Type</label><input type="text" id="sf-seedling-type" class="form-input"></div>
+        <div class="form-row"><label for="sf-planting-method">Planting Method</label><input type="text" id="sf-planting-method" class="form-input"></div>
+      </div>
+      <div class="form-row-grid">
+        <div class="form-row"><label for="sf-planting-density">Planting Density (TPA)</label><input type="number" id="sf-planting-density" class="form-input"></div>
+        <div class="form-row"><label for="sf-seed-source">Seed Source</label><input type="text" id="sf-seed-source" class="form-input"></div>
+      </div>
+      <div class="form-row-grid">
+        <div class="form-row"><label for="sf-init-stocking">Initial Stocking</label><input type="number" id="sf-init-stocking" class="form-input"></div>
+        <div class="form-row"><label for="sf-pct-survival">% Survival</label><input type="number" id="sf-pct-survival" class="form-input" min="0" max="100"></div>
+      </div>
+    </div>
+
+    <!-- Fire -->
+    <div class="submit-section cat-fields" id="sf-fire-fields">
+      <div class="submit-section-title">Fire Details</div>
+      <div class="form-row"><label for="sf-auth-num">Authorization Number</label><input type="text" id="sf-auth-num" class="form-input"></div>
+      <div class="form-row"><label for="sf-fmu-num">FMU Number</label><input type="text" id="sf-fmu-num" class="form-input"></div>
+      <div class="form-row"><label for="sf-burn-boss">Burn Boss</label><input type="text" id="sf-burn-boss" class="form-input"></div>
+      <div class="form-row"><label for="sf-crew">Crew</label><input type="text" id="sf-crew" class="form-input"></div>
+      <div class="form-row"><label for="sf-acres-burned">Acres Burned</label><input type="number" id="sf-acres-burned" class="form-input" min="0" step="0.1"></div>
+    </div>
+
+    <!-- Mechanical -->
+    <div class="submit-section cat-fields" id="sf-mechanical-fields">
+      <div class="submit-section-title">Mechanical Details</div>
+      <div class="form-row"><label for="sf-groundcover">Groundcover</label><input type="text" id="sf-groundcover" class="form-input"></div>
+      <div class="form-row"><label for="sf-mech-plant-method">Planting Method</label><input type="text" id="sf-mech-plant-method" class="form-input"></div>
+    </div>
+
+    <!-- Chemical -->
+    <div class="submit-section cat-fields" id="sf-chemical-fields">
+      <div class="submit-section-title">Chemical Details</div>
+      <div class="form-row"><label for="sf-chemical">Chemical</label><input type="text" id="sf-chemical" class="form-input"></div>
+      <div class="form-row"><label for="sf-chemical-rate">Chemical Rate</label><input type="text" id="sf-chemical-rate" class="form-input"></div>
+      <div class="form-row"><label for="sf-target-species">Target Species</label><input type="text" id="sf-target-species" class="form-input"></div>
+      <div class="form-row"><label for="sf-app-method">Application Method</label><input type="text" id="sf-app-method" class="form-input"></div>
+    </div>
+
+    <div class="submit-section">
+      <div class="submit-section-title">5. Comments</div>
+      <div class="form-row">
+        <label for="sf-comments">Comments</label>
+        <textarea id="sf-comments" class="form-input"></textarea>
+      </div>
+    </div>
+
+  </div>
+  <div id="submit-panel-footer">
+    <span id="submit-status"></span>
+    <button id="submit-cancel-btn">Cancel</button>
+    <button id="submit-do-btn" disabled>Submit</button>
+  </div>
+</div>
+
 <script>
 require([
   "esri/config",
@@ -651,8 +922,10 @@ require([
   "esri/layers/FeatureLayer",
   "esri/layers/GraphicsLayer",
   "esri/Graphic",
-  "esri/core/reactiveUtils"
-], function(esriConfig, esriId, OAuthInfo, Map, MapView, FeatureLayer, GraphicsLayer, Graphic, reactiveUtils) {
+  "esri/core/reactiveUtils",
+  "esri/geometry/Polygon",
+  "esri/geometry/geometryEngine"
+], function(esriConfig, esriId, OAuthInfo, Map, MapView, FeatureLayer, GraphicsLayer, Graphic, reactiveUtils, Polygon, geometryEngine) {
 
   const PORTAL = "https://floridaswater.maps.arcgis.com";
   esriConfig.portalUrl = PORTAL;
@@ -1995,6 +2268,317 @@ require([
     } catch(e) { console.warn("Count load error:", e); }
   }
 
+  // ── Submit Panel ─────────────────────────────────────────
+  let submitGeometries  = [];
+  let submitCategory    = "";
+  let submitPreviewLayer = new GraphicsLayer({ title: "Submit Preview", listMode: "hide" });
+
+  const submitPanel = document.getElementById("submit-panel");
+
+  function openSubmitPanel()  { submitPanel.classList.add("open"); }
+  function closeSubmitPanel() {
+    submitPanel.classList.remove("open");
+    clearSubmitGeometry();
+    resetSubmitForm();
+  }
+
+  function clearSubmitGeometry() {
+    submitGeometries = [];
+    submitPreviewLayer.removeAll();
+    document.getElementById("submit-geometry-info").style.display  = "none";
+    document.getElementById("submit-geometry-error").style.display = "none";
+    document.getElementById("sf-acres").value = "";
+  }
+
+  function resetSubmitForm() {
+    submitCategory = "";
+    document.querySelectorAll(".submit-cat-pill").forEach(p => p.classList.remove("active"));
+    document.querySelectorAll(".cat-fields").forEach(el => el.classList.remove("active"));
+    ["sf-area","sf-region","sf-type","sf-status","sf-objective","sf-treated-by","sf-fund-source"]
+      .forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
+    ["sf-detail","sf-contractor","sf-contract-num","sf-total-cost","sf-comments",
+     "sf-start-date","sf-complete-date","sf-fiscal-year","sf-acres",
+     "sf-sale-name","sf-stand-id","sf-silv-type","sf-species","sf-site-prep",
+     "sf-herb-rx","sf-herb-app-date","sf-seedling-type","sf-planting-method",
+     "sf-planting-density","sf-seed-source","sf-init-stocking","sf-pct-survival",
+     "sf-auth-num","sf-fmu-num","sf-burn-boss","sf-crew","sf-acres-burned",
+     "sf-groundcover","sf-mech-plant-method","sf-chemical","sf-chemical-rate",
+     "sf-target-species","sf-app-method"]
+      .forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
+    const st = document.getElementById("submit-status");
+    st.textContent = ""; st.style.color = "";
+    document.getElementById("submit-do-btn").disabled = true;
+  }
+
+  function checkSubmitReady() {
+    const ok = submitGeometries.length > 0 && submitCategory !== "" && document.getElementById("sf-area").value !== "";
+    document.getElementById("submit-do-btn").disabled = !ok;
+  }
+
+  // ── File Parsing ─────────────────────────────────────────
+  function coordsFromKMLText(text) {
+    return text.trim().split(/\s+/).map(c => {
+      const p = c.split(",");
+      return [parseFloat(p[0]), parseFloat(p[1])];
+    }).filter(c => !isNaN(c[0]) && !isNaN(c[1]));
+  }
+
+  function parseKML(text) {
+    const xml = new DOMParser().parseFromString(text, "text/xml");
+    const polys = [];
+    xml.querySelectorAll("Polygon").forEach(poly => {
+      const outerEl = poly.querySelector("outerBoundaryIs coordinates") ||
+                      poly.querySelector("outerBoundaryIs LinearRing coordinates");
+      if (!outerEl) return;
+      const outer = coordsFromKMLText(outerEl.textContent);
+      if (outer.length < 3) return;
+      const rings = [outer];
+      (poly.querySelectorAll("innerBoundaryIs coordinates, innerBoundaryIs LinearRing coordinates") || [])
+        .forEach(el => { const r = coordsFromKMLText(el.textContent); if (r.length >= 3) rings.push(r); });
+      polys.push(new Polygon({ rings, spatialReference: { wkid: 4326 } }));
+    });
+    return polys;
+  }
+
+  function parseGPX(text) {
+    const xml = new DOMParser().parseFromString(text, "text/xml");
+    const polys = [];
+    const toRing = pts => {
+      const coords = [...pts].map(pt => [parseFloat(pt.getAttribute("lon")), parseFloat(pt.getAttribute("lat"))]).filter(c => !isNaN(c[0]));
+      if (coords.length < 3) return null;
+      if (coords[0][0] !== coords[coords.length-1][0]) coords.push(coords[0]);
+      return coords;
+    };
+    xml.querySelectorAll("trk").forEach(t => { const r = toRing(t.querySelectorAll("trkpt")); if (r) polys.push(new Polygon({ rings: [r], spatialReference: { wkid: 4326 } })); });
+    xml.querySelectorAll("rte").forEach(t => { const r = toRing(t.querySelectorAll("rtept")); if (r) polys.push(new Polygon({ rings: [r], spatialReference: { wkid: 4326 } })); });
+    return polys;
+  }
+
+  async function parseKMZ(buffer) {
+    const bytes = new Uint8Array(buffer);
+    const dv    = new DataView(buffer);
+    let kmlText = null;
+    let i = 0;
+    while (i < bytes.length - 30) {
+      if (dv.getUint32(i, true) !== 0x04034b50) { i++; continue; }
+      const comp     = dv.getUint16(i + 8, true);
+      const compSize = dv.getUint32(i + 18, true);
+      const fnLen    = dv.getUint16(i + 26, true);
+      const exLen    = dv.getUint16(i + 28, true);
+      const fn       = new TextDecoder().decode(bytes.slice(i + 30, i + 30 + fnLen));
+      const dataStart = i + 30 + fnLen + exLen;
+      if (fn.endsWith(".kml")) {
+        const chunk = bytes.slice(dataStart, dataStart + compSize);
+        if (comp === 0) {
+          kmlText = new TextDecoder().decode(chunk);
+        } else {
+          const ds = new DecompressionStream("deflate-raw");
+          const w  = ds.writable.getWriter(); w.write(chunk); w.close();
+          const chunks = []; const r = ds.readable.getReader();
+          while (true) { const { done, value } = await r.read(); if (done) break; chunks.push(value); }
+          const out = new Uint8Array(chunks.reduce((s,c)=>s+c.length,0));
+          let off = 0; chunks.forEach(c=>{out.set(c,off);off+=c.length;});
+          kmlText = new TextDecoder().decode(out);
+        }
+        break;
+      }
+      i = dataStart + compSize;
+    }
+    if (!kmlText) throw new Error("No KML file found inside KMZ archive.");
+    return parseKML(kmlText);
+  }
+
+  function parseGeoJSON(text) {
+    const gj = JSON.parse(text);
+    const polys = [];
+    const feats = gj.type === "FeatureCollection" ? gj.features
+                : gj.type === "Feature"            ? [gj]
+                : [{ geometry: gj }];
+    feats.forEach(f => {
+      const g = f.geometry;
+      if (!g) return;
+      if      (g.type === "Polygon")      polys.push(new Polygon({ rings: g.coordinates, spatialReference: { wkid: 4326 } }));
+      else if (g.type === "MultiPolygon") g.coordinates.forEach(r => polys.push(new Polygon({ rings: r, spatialReference: { wkid: 4326 } })));
+    });
+    return polys;
+  }
+
+  async function handleSubmitFile(file) {
+    clearSubmitGeometry();
+    const errEl  = document.getElementById("submit-geometry-error");
+    const infoEl = document.getElementById("submit-geometry-info");
+    try {
+      const ext = file.name.split(".").pop().toLowerCase();
+      let polys = [];
+      if      (ext === "gpx")                 polys = parseGPX(await file.text());
+      else if (ext === "kml")                 polys = parseKML(await file.text());
+      else if (ext === "kmz")                 polys = await parseKMZ(await file.arrayBuffer());
+      else if (ext === "geojson" || ext === "json") polys = parseGeoJSON(await file.text());
+      else throw new Error("Unsupported file type. Use .gpx, .kml, .kmz, or .geojson");
+
+      if (!polys.length) throw new Error("No polygon geometry found in file.");
+
+      submitGeometries = polys;
+      submitPreviewLayer.removeAll();
+      polys.forEach(p => submitPreviewLayer.add(new Graphic({
+        geometry: p,
+        symbol: { type: "simple-fill", color: [45,122,58,0.2], outline: { type: "simple-line", color: [45,122,58,1], width: 2 } }
+      })));
+
+      // Zoom to uploaded geometry
+      const exts = polys.map(p => p.extent).filter(Boolean);
+      if (exts.length) {
+        let ext = exts[0].clone();
+        exts.slice(1).forEach(e => { ext = ext.union(e); });
+        view.goTo(ext.expand(1.5), { duration: 600 });
+      }
+
+      // Calculate acres
+      const totalAcres = polys.reduce((sum, p) => {
+        const a = geometryEngine.geodesicArea(p, "acres");
+        return sum + Math.abs(a);
+      }, 0);
+      document.getElementById("sf-acres").value = totalAcres.toFixed(1);
+
+      infoEl.textContent = `${polys.length} polygon${polys.length !== 1 ? "s" : ""} loaded · ${totalAcres.toFixed(1)} ac total`;
+      infoEl.style.display = "block";
+      errEl.style.display  = "none";
+      checkSubmitReady();
+    } catch(e) {
+      errEl.textContent   = "Error: " + e.message;
+      errEl.style.display = "block";
+    }
+  }
+
+  // ── Form helpers ─────────────────────────────────────────
+  function calcFiscalYear(dateStr) {
+    if (!dateStr) return "";
+    const d = new Date(dateStr), yr = d.getFullYear(), mo = d.getMonth() + 1;
+    return mo >= 10 ? `${yr}-${String(yr+1).slice(2)}` : `${yr-1}-${String(yr).slice(2)}`;
+  }
+
+  async function loadSubmitFormOptions() {
+    const distQ = field => {
+      const q = treatmentLayer.createQuery();
+      q.where = `${field} IS NOT NULL`; q.outFields = [field];
+      q.returnGeometry = false; q.returnDistinctValues = true; q.orderByFields = [field];
+      return treatmentLayer.queryFeatures(q).then(r => r.features.map(f => f.attributes[field]).filter(Boolean));
+    };
+    try {
+      const [areas, regions, types, objectives, treatedBy, fundSources] = await Promise.all([
+        distQ("MANAGEMENT_AREA"), distQ("REGION"), distQ("TREATMENT_TYPE"),
+        distQ("OBJECTIVE"), distQ("TREATED_BY"), distQ("FUND_SOURCE")
+      ]);
+      const populate = (id, vals) => {
+        const sel = document.getElementById(id);
+        vals.forEach(v => { const o = document.createElement("option"); o.value = o.textContent = v; sel.appendChild(o); });
+      };
+      populate("sf-area", areas); populate("sf-region", regions);
+      populate("sf-objective", objectives); populate("sf-treated-by", treatedBy);
+      populate("sf-fund-source", fundSources);
+      window._sfAllTypes = types;
+      const typeSel = document.getElementById("sf-type");
+      types.forEach(t => { const o = document.createElement("option"); o.value = o.textContent = t; typeSel.appendChild(o); });
+    } catch(e) { console.warn("Submit form options error:", e); }
+  }
+
+  async function doSubmitTreatment() {
+    const btn    = document.getElementById("submit-do-btn");
+    const status = document.getElementById("submit-status");
+    btn.disabled = true;
+    status.style.color = ""; status.textContent = "Submitting…";
+    try {
+      const finalGeom = submitGeometries.length === 1
+        ? submitGeometries[0]
+        : geometryEngine.union(submitGeometries);
+
+      const gv = id => document.getElementById(id)?.value || null;
+      const gn = id => { const v = document.getElementById(id)?.value; return v !== "" && v != null ? parseFloat(v) : null; };
+      const gi = id => { const v = document.getElementById(id)?.value; return v !== "" && v != null ? parseInt(v)   : null; };
+      const gd = id => { const v = document.getElementById(id)?.value; return v ? new Date(v).getTime() : null; };
+
+      const attrs = {
+        TREATMENT_CATEGORY: submitCategory || null,
+        MANAGEMENT_AREA:    gv("sf-area"),    REGION:          gv("sf-region"),
+        TREATMENT_TYPE:     gv("sf-type"),    TREATMENT_DETAIL: gv("sf-detail"),
+        TREATMENT_STATUS:   gv("sf-status"),  OBJECTIVE:        gv("sf-objective"),
+        START_DATE:         gd("sf-start-date"), COMPLETE_DATE: gd("sf-complete-date"),
+        FISCAL_YEAR:        gv("sf-fiscal-year"), ACRES:        gn("sf-acres"),
+        TREATED_BY:         gv("sf-treated-by"),  CONTRACTOR:   gv("sf-contractor"),
+        CONTRACT_NUM:       gv("sf-contract-num"), FUND_SOURCE: gv("sf-fund-source"),
+        TOTAL_COST:         gn("sf-total-cost"),   COMMENTS:    gv("sf-comments"),
+        REVIEW_STATUS:      "Pending",
+        SUBMISSION_DATE:    Date.now()
+      };
+
+      if (submitCategory === "Forestry") Object.assign(attrs, {
+        SALE_NAME: gv("sf-sale-name"), STAND_ID: gv("sf-stand-id"),
+        SILVICULTURE_TYPE: gv("sf-silv-type"), SPECIES: gv("sf-species"),
+        SITE_PREP_METHOD: gv("sf-site-prep"), HERB_RX: gv("sf-herb-rx"),
+        HERB_APP_DATE: gd("sf-herb-app-date"), SEEDLING_TYPE: gv("sf-seedling-type"),
+        PLANTING_METHOD: gv("sf-planting-method"), PLANTING_DENSITY: gi("sf-planting-density"),
+        SEED_SOURCE: gv("sf-seed-source"), INITIAL_STOCKING: gi("sf-init-stocking"),
+        PERCENT_SURVIVAL: gn("sf-pct-survival")
+      });
+      else if (submitCategory === "Fire") Object.assign(attrs, {
+        AUTHORIZATION_NUM: gv("sf-auth-num"), FMU_NUM: gv("sf-fmu-num"),
+        BURN_BOSS: gv("sf-burn-boss"), CREW: gv("sf-crew"), ACRES_BURNED: gn("sf-acres-burned")
+      });
+      else if (submitCategory === "Mechanical") Object.assign(attrs, {
+        GROUNDCOVER: gv("sf-groundcover"), PLANTING_METHOD: gv("sf-mech-plant-method")
+      });
+      else if (submitCategory === "Chemical") Object.assign(attrs, {
+        CHEMICAL: gv("sf-chemical"), CHEMICAL_RATE: gv("sf-chemical-rate"),
+        TARGET_SPECIES: gv("sf-target-species"), APPLICATION_METHOD: gv("sf-app-method")
+      });
+
+      const result = await treatmentLayer.applyEdits({ addFeatures: [new Graphic({ geometry: finalGeom, attributes: attrs })] });
+      if (result.addFeatureResults?.[0]?.error) throw new Error(result.addFeatureResults[0].error.message);
+
+      status.style.color = "#2d7a3a"; status.textContent = "Submitted successfully!";
+      setTimeout(() => { closeSubmitPanel(); refreshFromExtent(); }, 1500);
+    } catch(e) {
+      console.error("Submit error:", e);
+      status.style.color = "#c0392b"; status.textContent = "Error: " + e.message;
+      btn.disabled = false;
+    }
+  }
+
+  // ── Submit Panel Event Listeners ─────────────────────────
+  document.getElementById("submit-btn").addEventListener("click", openSubmitPanel);
+  document.getElementById("submit-panel-close").addEventListener("click", closeSubmitPanel);
+  document.getElementById("submit-cancel-btn").addEventListener("click", closeSubmitPanel);
+  document.getElementById("submit-do-btn").addEventListener("click", doSubmitTreatment);
+
+  const dropZone = document.getElementById("submit-drop-zone");
+  const fileInput = document.getElementById("submit-file-input");
+  dropZone.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", e => { if (e.target.files[0]) handleSubmitFile(e.target.files[0]); });
+  dropZone.addEventListener("dragover",  e => { e.preventDefault(); dropZone.classList.add("dragover"); });
+  dropZone.addEventListener("dragleave", ()  => dropZone.classList.remove("dragover"));
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault(); dropZone.classList.remove("dragover");
+    if (e.dataTransfer.files[0]) handleSubmitFile(e.dataTransfer.files[0]);
+  });
+
+  document.querySelectorAll(".submit-cat-pill").forEach(pill => {
+    pill.addEventListener("click", () => {
+      const cat = pill.dataset.cat;
+      submitCategory = cat;
+      document.querySelectorAll(".submit-cat-pill").forEach(p => p.classList.toggle("active", p === pill));
+      document.querySelectorAll(".cat-fields").forEach(el => el.classList.remove("active"));
+      const catEl = document.getElementById("sf-" + cat.toLowerCase() + "-fields");
+      if (catEl) catEl.classList.add("active");
+      checkSubmitReady();
+    });
+  });
+
+  document.getElementById("sf-area").addEventListener("change", checkSubmitReady);
+
+  document.getElementById("sf-complete-date").addEventListener("change", e => {
+    document.getElementById("sf-fiscal-year").value = calcFiscalYear(e.target.value);
+  });
+
   view.when(async () => {
     [treatLV, invLineLV, invAreaLV] = await Promise.all([
       view.whenLayerView(treatmentLayer),
@@ -2007,7 +2591,8 @@ require([
       stationary => { if (stationary && !clickMode) refreshFromExtent(); }
     );
 
-    await Promise.all([loadFilterOptions(), loadInvasiveFilterOptions(), loadTotalCount()]);
+    view.map.add(submitPreviewLayer);
+    await Promise.all([loadFilterOptions(), loadInvasiveFilterOptions(), loadTotalCount(), loadSubmitFormOptions()]);
     await Promise.all([refreshTypeOptions(), refreshDetailOptions()]);
     refreshFromExtent();
 
