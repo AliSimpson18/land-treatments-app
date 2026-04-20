@@ -2432,9 +2432,15 @@ require([
     try {
       const ext = file.name.split(".").pop().toLowerCase();
       let polys = [], date = "";
-      if      (ext === "gpx")                      ({ polys, date } = parseGPX(await file.text()));
+
+      // Peek at first 4 bytes — ZIP magic bytes (PK\x03\x04) mean treat as KMZ
+      // regardless of extension (ArcGIS Pro sometimes exports KMZ with .kml extension)
+      const header = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+      const isZip  = header[0] === 0x50 && header[1] === 0x4B && header[2] === 0x03 && header[3] === 0x04;
+
+      if      (isZip)                              ({ polys, date } = await parseKMZ(await file.arrayBuffer()));
+      else if (ext === "gpx")                      ({ polys, date } = parseGPX(await file.text()));
       else if (ext === "kml")                      ({ polys, date } = parseKML(await file.text()));
-      else if (ext === "kmz")                      ({ polys, date } = await parseKMZ(await file.arrayBuffer()));
       else if (ext === "geojson" || ext === "json") ({ polys, date } = parseGeoJSON(await file.text()));
       else throw new Error("Unsupported file type. Use .gpx, .kml, .kmz, or .geojson");
 
