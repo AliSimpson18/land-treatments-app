@@ -753,9 +753,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       <div class="submit-section-title">1. Upload Geometry</div>
       <div class="file-drop-zone" id="submit-drop-zone">
         <strong>Drop file here or click to browse</strong>
-        <p>Accepted: .gpx &nbsp;·&nbsp; .kml &nbsp;·&nbsp; .kmz &nbsp;·&nbsp; .geojson</p>
+        <p>Accepted: .zip (shapefile) &nbsp;·&nbsp; .gpx &nbsp;·&nbsp; .kml &nbsp;·&nbsp; .kmz &nbsp;·&nbsp; .geojson</p>
       </div>
-      <input type="file" id="submit-file-input" accept=".gpx,.kml,.kmz,.geojson,.json">
+      <input type="file" id="submit-file-input" accept=".zip,.gpx,.kml,.kmz,.geojson,.json">
       <div id="submit-geometry-info"></div>
       <div id="submit-swath-row">
         <label for="submit-swath-input">Line treatment detected. Swath width:</label>
@@ -2480,6 +2480,112 @@ require([
     return { polys, lines, date };
   }
 
+  async function extractZipEntry(bytes, dv, entry) {
+    const lh = entry.localOff;
+    const lfnLen = dv.getUint16(lh + 26, true);
+    const lexLen = dv.getUint16(lh + 28, true);
+    const dataStart = lh + 30 + lfnLen + lexLen;
+    const chunk = bytes.slice(dataStart, dataStart + entry.compSize);
+    if (entry.comp === 0) return chunk;
+    const ds = new DecompressionStream("deflate-raw");
+    const w = ds.writable.getWriter(); w.write(chunk); w.close();
+    const chunks = []; const r = ds.readable.getReader();
+    while (true) { const { done, value } = await r.read(); if (done) break; chunks.push(value); }
+    const out = new Uint8Array(chunks.reduce((s,c)=>s+c.length,0));
+    let off = 0; chunks.forEach(c=>{out.set(c,off);off+=c.length;});
+    return out;
+  }
+
+  async function parseShapefile(buffer) {
+    const bytes = new Uint8Array(buffer);
+    const dv    = new DataView(buffer);
+
+    // Find EOCD and walk central directory
+    let eocdOff = -1;
+    for (let i = bytes.length - 22; i >= 0; i--) {
+      if (dv.getUint32(i, true) === 0x06054b50) { eocdOff = i; break; }
+    }
+    if (eocdOff === -1) throw new Error("Not a valid ZIP file.");
+    const cdOff  = dv.getUint32(eocdOff + 16, true);
+    const cdSize = dv.getUint32(eocdOff + 12, true);
+
+    let shpEntry = null, prjEntry = null;
+    let pos = cdOff;
+    while (pos < cdOff + cdSize) {
+      if (dv.getUint32(pos, true) !== 0x02014b50) break;
+      const comp       = dv.getUint16(pos + 10, true);
+      const compSize   = dv.getUint32(pos + 20, true);
+      const fnLen      = dv.getUint16(pos + 28, true);
+      const extraLen   = dv.getUint16(pos + 30, true);
+      const commentLen = dv.getUint16(pos + 32, true);
+      const localOff   = dv.getUint32(pos + 42, true);
+      const fn = new TextDecoder().decode(bytes.slice(pos + 46, pos + 46 + fnLen)).toLowerCase();
+      if (fn.endsWith(".shp") && !fn.includes("__macosx")) shpEntry = { comp, compSize, localOff };
+      if (fn.endsWith(".prj") && !fn.includes("__macosx")) prjEntry = { comp, compSize, localOff };
+      pos += 46 + fnLen + extraLen + commentLen;
+    }
+    if (!shpEntry) throw new Error("No .shp file found in ZIP. Export your feature class as a Shapefile (.zip) from ArcGIS Pro.");
+
+    const shpBytes = await extractZipEntry(bytes, dv, shpEntry);
+    const shpDV    = new DataView(shpBytes.buffer, shpBytes.byteOffset, shpBytes.byteLength);
+
+    // Determine spatial reference from .prj AUTHORITY node
+    let wkid = 4326;
+    if (prjEntry) {
+      const prjBytes = await extractZipEntry(bytes, dv, prjEntry);
+      const prjText  = new TextDecoder().decode(prjBytes);
+      const matches  = [...prjText.matchAll(/AUTHORITY\["[^"]+","(\d+)"\]/g)];
+      if (matches.length) wkid = parseInt(matches[matches.length - 1][1]);
+    }
+    const sr = { wkid };
+
+    const polys = [], lines = [];
+    let i = 100; // SHP file header is 100 bytes
+    while (i < shpBytes.length - 8) {
+      const contentLen = shpDV.getInt32(i + 4, false) * 2; // big-endian, in 16-bit words
+      if (contentLen < 4) break;
+      const shapeType  = shpDV.getInt32(i + 8, true);
+
+      if (shapeType === 5 || shapeType === 15 || shapeType === 25) {
+        // Polygon / PolygonZ / PolygonM
+        const numParts  = shpDV.getInt32(i + 8 + 36, true);
+        const numPoints = shpDV.getInt32(i + 8 + 40, true);
+        const partsOff  = i + 8 + 44;
+        const ptsOff    = partsOff + numParts * 4;
+        const partStarts = Array.from({ length: numParts }, (_, p) => shpDV.getInt32(partsOff + p * 4, true));
+        const rings = partStarts.map((start, p) => {
+          const end = p < numParts - 1 ? partStarts[p + 1] : numPoints;
+          return Array.from({ length: end - start }, (_, k) => [
+            shpDV.getFloat64(ptsOff + (start + k) * 16,     true),
+            shpDV.getFloat64(ptsOff + (start + k) * 16 + 8, true)
+          ]);
+        });
+        if (rings.length) polys.push(new Polygon({ rings, spatialReference: sr }));
+
+      } else if (shapeType === 3 || shapeType === 13 || shapeType === 23) {
+        // PolyLine / PolyLineZ / PolyLineM
+        const numParts  = shpDV.getInt32(i + 8 + 36, true);
+        const numPoints = shpDV.getInt32(i + 8 + 40, true);
+        const partsOff  = i + 8 + 44;
+        const ptsOff    = partsOff + numParts * 4;
+        const partStarts = Array.from({ length: numParts }, (_, p) => shpDV.getInt32(partsOff + p * 4, true));
+        const paths = partStarts.map((start, p) => {
+          const end = p < numParts - 1 ? partStarts[p + 1] : numPoints;
+          return Array.from({ length: end - start }, (_, k) => [
+            shpDV.getFloat64(ptsOff + (start + k) * 16,     true),
+            shpDV.getFloat64(ptsOff + (start + k) * 16 + 8, true)
+          ]);
+        });
+        if (paths.length) lines.push(new Polyline({ paths, spatialReference: sr }));
+      }
+
+      i += 8 + contentLen;
+    }
+
+    if (!polys.length && !lines.length) throw new Error("No polygon or line geometry found in shapefile.");
+    return { polys, lines, date: "" };
+  }
+
   async function handleSubmitFile(file) {
     clearSubmitGeometry();
     const errEl      = document.getElementById("submit-geometry-error");
@@ -2492,11 +2598,12 @@ require([
       const header = new Uint8Array(await file.slice(0, 4).arrayBuffer());
       const isZip  = header[0] === 0x50 && header[1] === 0x4B && header[2] === 0x03 && header[3] === 0x04;
 
-      if      (isZip)                               ({ polys, lines, date } = await parseKMZ(await file.arrayBuffer()));
+      if      (ext === "zip")                       ({ polys, lines, date } = await parseShapefile(await file.arrayBuffer()));
+      else if (ext === "kmz" || (isZip && ext === "kml")) ({ polys, lines, date } = await parseKMZ(await file.arrayBuffer()));
       else if (ext === "gpx")                       ({ polys, lines, date } = parseGPX(await file.text()));
       else if (ext === "kml")                       ({ polys, lines, date } = parseKML(await file.text()));
       else if (ext === "geojson" || ext === "json") ({ polys, lines, date } = parseGeoJSON(await file.text()));
-      else throw new Error("Unsupported file type. Use .gpx, .kml, .kmz, or .geojson");
+      else throw new Error("Unsupported file type. Use .zip (shapefile), .gpx, .kml, .kmz, or .geojson");
 
       if (!polys.length && !lines.length) throw new Error("No polygon or line geometry found in file.");
 
