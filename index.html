@@ -536,6 +536,61 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       border-left: 1px solid #d0d0d0; box-shadow: -4px 0 16px rgba(0,0,0,0.15);
     }
     #submit-panel.open { transform: translateX(0); }
+
+    /* ── Splash / Help modal ── */
+    #splash-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+      z-index: 1100; display: flex; align-items: center; justify-content: center;
+    }
+    #splash-overlay.hidden { display: none; }
+    #splash-modal {
+      background: #fff; border-radius: 8px; width: 520px; max-width: 94vw;
+      max-height: 88vh; display: flex; flex-direction: column;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.28);
+    }
+    #splash-header {
+      background: #1a4f72; color: white; padding: 16px 20px 13px;
+      border-radius: 8px 8px 0 0; flex-shrink: 0;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    #splash-header h2 { font-size: 15px; font-weight: 600; }
+    #splash-header p  { font-size: 11px; opacity: 0.75; margin-top: 2px; }
+    #splash-close-btn {
+      background: none; border: 1px solid rgba(255,255,255,0.4); color: white;
+      border-radius: 4px; padding: 3px 9px; cursor: pointer; font-size: 16px; line-height: 1;
+    }
+    #splash-body {
+      overflow-y: auto; padding: 18px 20px; flex: 1;
+    }
+    .splash-section { margin-bottom: 18px; }
+    .splash-section:last-child { margin-bottom: 0; }
+    .splash-section-title {
+      font-size: 12px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.5px; color: #1a4f72; margin-bottom: 6px;
+      padding-bottom: 4px; border-bottom: 1px solid #e0e8f0;
+    }
+    .splash-section p { font-size: 12px; color: #333; line-height: 1.6; margin: 0; }
+    .splash-pill {
+      display: inline-block; font-size: 10px; font-weight: 600;
+      border-radius: 10px; padding: 1px 7px; margin: 0 2px;
+      vertical-align: middle; color: white;
+    }
+    #splash-footer {
+      padding: 12px 20px; border-top: 1px solid #e5e5e5;
+      display: flex; justify-content: flex-end; flex-shrink: 0;
+    }
+    #splash-got-it {
+      background: #1a4f72; color: white; border: none; border-radius: 5px;
+      padding: 7px 22px; font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    #splash-got-it:hover { background: #15405e; }
+    #help-btn {
+      background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.4);
+      color: white; border-radius: 50%; width: 20px; height: 20px;
+      font-size: 11px; font-weight: 700; cursor: pointer; line-height: 1;
+      margin-left: 8px; vertical-align: middle; flex-shrink: 0;
+    }
+    #help-btn:hover { background: rgba(255,255,255,0.28); }
     #submit-panel-header {
       background: #1a4f72; color: white; padding: 13px 16px 11px;
       display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
@@ -643,7 +698,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 <div id="left-panel">
 
   <div id="app-header">
-    <h1>Land Treatment History</h1>
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <h1>Land Treatment History</h1>
+      <button id="help-btn" title="How to use this app">?</button>
+    </div>
     <p>SJRWMD &middot; <span id="total-count">—</span> records <button id="submit-btn">+ Submit Treatment</button></p>
   </div>
 
@@ -2963,6 +3021,123 @@ require([
   } // end initApp
 
 }); // end require
+</script>
+
+<!-- ══ Splash / Help Modal ═══════════════════════════════════════════════ -->
+<div id="splash-overlay">
+  <div id="splash-modal">
+    <div id="splash-header">
+      <div>
+        <h2>Land Treatment History Viewer</h2>
+        <p>Quick reference — how to use this app</p>
+      </div>
+      <button id="splash-close-btn">&times;</button>
+    </div>
+
+    <div id="splash-body">
+
+      <div class="splash-section">
+        <div class="splash-section-title">Category Pills</div>
+        <p>The colored pills at the top of the filter panel —
+          <span class="splash-pill" style="background:#639922">Forestry</span>
+          <span class="splash-pill" style="background:#E24B4A">Fire</span>
+          <span class="splash-pill" style="background:#378ADD">Mechanical</span>
+          <span class="splash-pill" style="background:#7F77DD">Chemical</span>
+          — control which treatment categories are visible on the map and in the results list.
+          Click any pill to toggle it on or off. Multiple categories can be active at once.
+          The <span class="splash-pill" style="background:#E8871A">Invasive Plant</span> pill
+          loads a separate dataset and is off by default — see below.
+        </p>
+      </div>
+
+      <div class="splash-section">
+        <div class="splash-section-title">Clicking the Map</div>
+        <p>Click anywhere on the map to query all overlapping treatment polygons at that point.
+          A navy pin marks where you clicked and the results panel updates to show only
+          treatments that intersect that location. Click any result in the list to open the
+          full detail record. Click <strong>Back</strong> to return to the full list,
+          or <strong>Clear</strong> to remove the pin and resume browsing by extent.
+        </p>
+      </div>
+
+      <div class="splash-section">
+        <div class="splash-section-title">Filters</div>
+        <p>Use the <strong>Management Area</strong> dropdown to jump to a specific area —
+          the map zooms automatically. This is the best starting point before exploring
+          treatments, especially on slower connections.
+          Use <strong>Fiscal Year</strong> to narrow results to one or more years;
+          the most recent fiscal year is selected by default.
+          Treatment Type and Treatment Detail cascade from your active category selection.
+        </p>
+      </div>
+
+      <div class="splash-section">
+        <div class="splash-section-title">Invasive Plant Treatments</div>
+        <p>Invasive plant data comes from a separate department dataset and behaves
+          differently from land management treatments. Toggle the
+          <span class="splash-pill" style="background:#E8871A">Invasive Plant</span> pill
+          to load it. Records are shown in orange on the map. Because invasive records
+          link across multiple tables (treatment geometry, work summary, and species data),
+          they may take a moment longer to load than standard LM treatments.
+          Invasive records have their own set of fields — species, herbicides, crew, etc. —
+          which are displayed in the detail panel when you click one.
+        </p>
+      </div>
+
+      <div class="splash-section">
+        <div class="splash-section-title">Exporting Results</div>
+        <p>The <strong>Export</strong> button appears in the results bar whenever records
+          are present. You can export to Excel (.xlsx) or CSV. If both land management and
+          invasive plant records are in your current results, the Excel export produces
+          <strong>two separate sheets</strong> — one for each dataset — because their
+          field schemas are different. CSV exports two separate files for the same reason.
+        </p>
+      </div>
+
+      <div class="splash-section">
+        <div class="splash-section-title">Submitting a Treatment</div>
+        <p>Use the <strong>+ Submit Treatment</strong> button to add a new record.
+          Upload a geometry file — supported formats are .zip (shapefile), .kmz, .kml,
+          .gpx, or .geojson. The app will auto-fill Management Area, date, and acreage
+          where possible. For line-based treatments (such as aquatic shredding), enter
+          the machine swath width in feet to buffer the line into a polygon.
+          Fill in the treatment details and click <strong>Submit</strong>.
+        </p>
+      </div>
+
+    </div>
+
+    <div id="splash-footer">
+      <button id="splash-got-it">Got it</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const overlay  = document.getElementById("splash-overlay");
+    const closeBtn = document.getElementById("splash-close-btn");
+    const gotItBtn = document.getElementById("splash-got-it");
+    const helpBtn  = document.getElementById("help-btn");
+    const STORAGE_KEY = "lmv_splash_shown";
+
+    function closeSplash() { overlay.classList.add("hidden"); }
+    function openSplash()  { overlay.classList.remove("hidden"); }
+
+    // Show on first visit only
+    if (localStorage.getItem(STORAGE_KEY)) {
+      overlay.classList.add("hidden");
+    }
+
+    closeBtn.addEventListener("click", () => { localStorage.setItem(STORAGE_KEY, "1"); closeSplash(); });
+    gotItBtn.addEventListener("click", () => { localStorage.setItem(STORAGE_KEY, "1"); closeSplash(); });
+    helpBtn.addEventListener("click",  openSplash);
+
+    // Clicking outside the modal closes it
+    overlay.addEventListener("click", e => {
+      if (e.target === overlay) { localStorage.setItem(STORAGE_KEY, "1"); closeSplash(); }
+    });
+  })();
 </script>
 </body>
 </html>
