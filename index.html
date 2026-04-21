@@ -2817,12 +2817,95 @@ require([
       if (catEl) catEl.classList.add("active");
       document.getElementById("sf-type").value = "";
       document.getElementById("sf-detail").innerHTML = '<option value="">— Select —</option>';
+      resetTypeFields(cat);
       refreshSubmitDetailOptions();
       checkSubmitReady();
     });
   });
 
   document.getElementById("sf-area").addEventListener("change", checkSubmitReady);
+
+  const SUBMIT_FIELD_MAP = {
+    Forestry: {
+      "sf-sale-name":        "SALE_NAME",
+      "sf-stand-id":         "STAND_ID",
+      "sf-silv-type":        "SILVICULTURE_TYPE",
+      "sf-species":          "SPECIES",
+      "sf-site-prep":        "SITE_PREP_METHOD",
+      "sf-herb-rx":          "HERB_RX",
+      "sf-herb-app-date":    "HERB_APP_DATE",
+      "sf-seedling-type":    "SEEDLING_TYPE",
+      "sf-planting-method":  "PLANTING_METHOD",
+      "sf-planting-density": "PLANTING_DENSITY",
+      "sf-seed-source":      "SEED_SOURCE",
+      "sf-init-stocking":    "INITIAL_STOCKING",
+      "sf-pct-survival":     "PERCENT_SURVIVAL"
+    },
+    Fire: {
+      "sf-auth-num":    "AUTHORIZATION_NUM",
+      "sf-fmu-num":     "FMU_NUM",
+      "sf-burn-boss":   "BURN_BOSS",
+      "sf-crew":        "CREW",
+      "sf-acres-burned":"ACRES_BURNED"
+    },
+    Mechanical: {
+      "sf-groundcover":       "GROUNDCOVER",
+      "sf-mech-plant-method": "PLANTING_METHOD"
+    },
+    Chemical: {
+      "sf-chemical":      "CHEMICAL",
+      "sf-chemical-rate": "CHEMICAL_RATE",
+      "sf-target-species":"TARGET_SPECIES",
+      "sf-app-method":    "APPLICATION_METHOD"
+    }
+  };
+
+  function resetTypeFields(cat) {
+    const fieldMap = SUBMIT_FIELD_MAP[cat];
+    if (!fieldMap) return;
+    const section = document.getElementById(`sf-${cat.toLowerCase()}-fields`);
+    if (!section) return;
+    section.querySelectorAll(".form-row").forEach(r => r.style.display = "");
+    section.querySelectorAll(".form-row-grid").forEach(g => g.style.display = "");
+  }
+
+  async function refreshTypeFields() {
+    const cat  = submitCategory;
+    const type = document.getElementById("sf-type").value;
+    const fieldMap = SUBMIT_FIELD_MAP[cat];
+    if (!fieldMap) return;
+
+    resetTypeFields(cat);
+    if (!type) return;
+
+    try {
+      const layerFields = Object.values(fieldMap);
+      const q = treatmentLayer.createQuery();
+      q.where = `TREATMENT_CATEGORY = '${cat}' AND TREATMENT_TYPE = '${type.replace(/'/g,"''")}'`;
+      q.outFields = layerFields;
+      q.returnGeometry = false;
+      q.num = 100;
+      const result = await treatmentLayer.queryFeatures(q);
+      if (!result.features.length) return; // New type — show all fields
+
+      const populated = new Set();
+      result.features.forEach(f => {
+        layerFields.forEach(field => {
+          if (f.attributes[field] != null && f.attributes[field] !== "") populated.add(field);
+        });
+      });
+
+      const section = document.getElementById(`sf-${cat.toLowerCase()}-fields`);
+      Object.entries(fieldMap).forEach(([inputId, layerField]) => {
+        const row = document.getElementById(inputId)?.closest(".form-row");
+        if (row) row.style.display = populated.has(layerField) ? "" : "none";
+      });
+      section.querySelectorAll(".form-row-grid").forEach(grid => {
+        const anyVisible = [...grid.querySelectorAll(".form-row")].some(r => r.style.display !== "none");
+        grid.style.display = anyVisible ? "" : "none";
+      });
+    } catch(e) { /* non-fatal — leave all fields visible */ }
+  }
 
   async function refreshSubmitDetailOptions() {
     const sel = document.getElementById("sf-detail");
@@ -2846,6 +2929,7 @@ require([
   document.getElementById("sf-type").addEventListener("change", () => {
     document.getElementById("sf-detail").innerHTML = '<option value="">— Select —</option>';
     refreshSubmitDetailOptions();
+    refreshTypeFields();
   });
 
   document.getElementById("sf-complete-date").addEventListener("change", e => {
