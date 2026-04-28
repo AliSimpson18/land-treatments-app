@@ -2305,16 +2305,23 @@ require([
   // ── Bootstrap ─────────────────────────────────────────────
   async function loadFilterOptions() {
     try {
-      const q = treatmentLayer.createQuery();
-      q.where          = "1=1";
-      q.outFields      = ["FISCAL_YEAR","MANAGEMENT_AREA"];
-      q.returnGeometry = false;
-      q.num            = 5000;
-      const res = await treatmentLayer.queryFeatures(q);
-      const attrs = res.features.map(f => f.attributes);
+      const makeDistinctQ = (field, orderDir = "ASC") => {
+        const q = treatmentLayer.createQuery();
+        q.where               = `${field} IS NOT NULL`;
+        q.outFields           = [field];
+        q.returnGeometry      = false;
+        q.returnDistinctValues = true;
+        q.orderByFields       = [`${field} ${orderDir}`];
+        return treatmentLayer.queryFeatures(q);
+      };
 
-      const years = [...new Set(attrs.map(a => a.FISCAL_YEAR).filter(Boolean))].sort().reverse();
-      const areas = [...new Set(attrs.map(a => a.MANAGEMENT_AREA).filter(Boolean))].sort();
+      const [yearRes, areaRes] = await Promise.all([
+        makeDistinctQ("FISCAL_YEAR", "DESC"),
+        makeDistinctQ("MANAGEMENT_AREA", "ASC"),
+      ]);
+
+      const years = yearRes.features.map(f => f.attributes.FISCAL_YEAR).filter(Boolean);
+      const areas = areaRes.features.map(f => f.attributes.MANAGEMENT_AREA).filter(Boolean);
 
       const addOpts = (id, vals) => {
         const sel = document.getElementById(id);
