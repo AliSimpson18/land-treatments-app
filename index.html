@@ -1083,6 +1083,8 @@ require([
   let showInvasive      = false;
   let activeInvSpecies  = "";
   let activeInvYears    = new Set();
+  let defaultInvYears     = new Set();
+  let defaultInvYearWhere = "1=1";
   let activeType      = "";
   let activeYears     = new Set();
   let activeArea      = "";
@@ -1825,11 +1827,13 @@ require([
   document.getElementById("clear-filters-btn").addEventListener("click", () => {
     activeCats = new Set(["Forestry","Fire","Mechanical","Chemical"]);
     showInvasive = false;
-    activeInvSpecies = ""; activeInvYears = new Set();
+    activeInvSpecies = ""; activeInvYears = new Set(defaultInvYears);
     invLineLayer.visible = invAreaLayer.visible = false;
-    invLineLayer.definitionExpression = invAreaLayer.definitionExpression = "1=1";
+    invLineLayer.definitionExpression = invAreaLayer.definitionExpression = defaultInvYearWhere;
     document.getElementById("inv-species-select").value = "";
-    document.querySelectorAll("#inv-year-ms-dropdown input[type=checkbox]").forEach(cb => cb.checked = false);
+    document.querySelectorAll("#inv-year-ms-dropdown input[type=checkbox]").forEach(cb => {
+      cb.checked = defaultInvYears.has(cb.value);
+    });
     updateInvYearBtn();
     document.querySelectorAll(".cat-pill").forEach(p => {
       if (p.dataset.cat === "Invasive") p.classList.remove("active");
@@ -2192,19 +2196,16 @@ require([
       const specSel = document.getElementById("inv-species-select");
       species.forEach(s => { const o = document.createElement("option"); o.value = o.textContent = s; specSel.appendChild(o); });
 
-      // Most recent base FY keeps individual quarters; all prior FYs are grouped
+      // All FYs are grouped into one entry per base year (e.g. "2025-26")
       const mostRecentBase = years.length ? years[0].split(" ")[0] : null;
 
-      // Build display items: quarters for current FY, one entry per base FY for older ones
       const addedBases = new Set();
       const displayItems = []; // { label, value, isCurrentFY }
       years.forEach(y => {
         const base = y.split(" ")[0];
-        if (base === mostRecentBase) {
-          displayItems.push({ label: y, value: y, isCurrentFY: true });
-        } else if (!addedBases.has(base)) {
+        if (!addedBases.has(base)) {
           addedBases.add(base);
-          displayItems.push({ label: base, value: base, isCurrentFY: false });
+          displayItems.push({ label: base, value: base, isCurrentFY: base === mostRecentBase });
         }
       });
 
@@ -2221,19 +2222,19 @@ require([
         yrDropdown.appendChild(div);
       });
 
-      // Default to all quarters of the most recent fiscal year
+      // Default to the most recent fiscal year
       if (mostRecentBase) {
         const defaultVals = displayItems.filter(i => i.isCurrentFY).map(i => i.value);
-        defaultVals.forEach(v => activeInvYears.add(v));
+        defaultVals.forEach(v => { activeInvYears.add(v); defaultInvYears.add(v); });
         yrDropdown.querySelectorAll("input[type=checkbox]").forEach(cb => {
           if (defaultVals.includes(cb.value)) cb.checked = true;
         });
         updateInvYearBtn();
         const startYr = parseInt(mostRecentBase.split("-")[0]);
         if (!isNaN(startYr)) {
-          const where = `DT >= DATE '${startYr}-10-01' AND DT < DATE '${startYr + 1}-10-01'`;
-          invLineLayer.definitionExpression = where;
-          invAreaLayer.definitionExpression = where;
+          defaultInvYearWhere = `DT >= DATE '${startYr}-10-01' AND DT < DATE '${startYr + 1}-10-01'`;
+          invLineLayer.definitionExpression = defaultInvYearWhere;
+          invAreaLayer.definitionExpression = defaultInvYearWhere;
         }
       }
     } catch(e) { console.warn("Invasive filter load error:", e); }
