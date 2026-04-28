@@ -1085,6 +1085,7 @@ require([
   let activeInvYears    = new Set();
   let defaultInvYears     = new Set();
   let defaultInvYearWhere = "1=1";
+  let activeMgmtGeometry  = null;
   let activeType      = "";
   let activeYears     = new Set();
   let activeArea      = "";
@@ -1328,9 +1329,10 @@ require([
       let invFeatures = [];
       if (showInvasive) {
         // Fetch geometry from both layers in parallel
+        // Use management area polygon as spatial filter when selected, otherwise fall back to map extent
         const makeInvQ = (layer) => {
           const iq = layer.createQuery();
-          iq.geometry = view.extent; iq.spatialRelationship = "intersects";
+          iq.geometry = activeMgmtGeometry || view.extent; iq.spatialRelationship = "intersects";
           iq.outFields = ["*"]; iq.returnGeometry = true; iq.num = 500;
           return layer.queryFeatures(iq).catch(() => ({ features: [] }));
         };
@@ -1706,6 +1708,7 @@ require([
       if (id === "area-select") {
         activeArea = e.target.value;
         if (activeArea) zoomToManagementArea(activeArea);
+        else activeMgmtGeometry = null;
       }
       applyFilters();
     });
@@ -1819,6 +1822,8 @@ require([
       q.returnGeometry = true;
       const res = await mgmtLayer.queryFeatures(q);
       if (!res.features.length) return;
+      const geoms = res.features.map(f => f.geometry).filter(Boolean);
+      activeMgmtGeometry = geoms.length === 1 ? geoms[0] : geometryEngine.union(geoms);
       const ext = res.features.reduce((acc, f) => acc ? acc.union(f.geometry.extent) : f.geometry.extent, null);
       if (ext) view.goTo(ext.expand(1.15));
     } catch(e) { console.warn("Zoom to area error:", e); }
@@ -1839,7 +1844,7 @@ require([
       if (p.dataset.cat === "Invasive") p.classList.remove("active");
       else p.classList.add("active");
     });
-    activeType = ""; activeYears = new Set(); activeArea = ""; activeDetails = new Set();
+    activeType = ""; activeYears = new Set(); activeArea = ""; activeDetails = new Set(); activeMgmtGeometry = null;
     document.getElementById("type-select").value = "";
     document.getElementById("area-select").value = "";
     document.querySelectorAll("#year-ms-dropdown input[type=checkbox]").forEach(cb => cb.checked = false);
