@@ -136,6 +136,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       border-top: 2px solid #f5d5e8;
       margin-top: 10px;
       padding-top: 8px;
+      display: none;
     }
     .invasive-filter-label {
       font-size: 10px;
@@ -1693,6 +1694,7 @@ require([
         pill.classList.toggle("active", showInvasive);
         invLineLayer.visible = showInvasive;
         invAreaLayer.visible = showInvasive;
+        document.getElementById("invasive-filters").style.display = showInvasive ? "block" : "none";
         if (clickMode) clearClick(); else refreshFromExtent();
         return;
       }
@@ -1834,6 +1836,7 @@ require([
     showInvasive = false;
     activeInvSpecies = ""; activeInvYears = new Set(defaultInvYears);
     invLineLayer.visible = invAreaLayer.visible = false;
+    document.getElementById("invasive-filters").style.display = "none";
     invLineLayer.definitionExpression = invAreaLayer.definitionExpression = defaultInvYearWhere;
     document.getElementById("inv-species-select").value = "";
     document.querySelectorAll("#inv-year-ms-dropdown input[type=checkbox]").forEach(cb => {
