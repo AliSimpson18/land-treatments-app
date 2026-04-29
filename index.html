@@ -3217,7 +3217,9 @@ require([
         <p>Invasive plant data comes from a separate dataset and behaves
           differently from land management treatments. Toggle the
           <span class="splash-pill" style="background:#D94F8A">Invasive Plant</span> pill
-          to load it. Records are shown in pink on the map. Because invasive records
+          to load it — this also reveals the Invasive Treatments filter section
+          (fiscal year and species) at the bottom of the filter panel.
+          Records are shown in pink on the map. Because invasive records
           link across multiple tables (treatment geometry, work summary, and species data),
           they may take a moment longer to load than standard LM treatments.
           Invasive records have their own set of fields — species, herbicides, crew, etc. —
@@ -3238,11 +3240,17 @@ require([
       <div class="splash-section">
         <div class="splash-section-title">Submitting a Treatment</div>
         <p>Use the <strong>+ Submit Treatment</strong> button to add a new record.
-          Upload a geometry file — supported formats are .zip (shapefile), .kmz, .kml,
-          .gpx, or .geojson. The app will auto-fill Management Area, date, and acreage
-          where possible. For line-based treatments (such as aquatic shredding), enter
-          the machine swath width in feet to buffer the line into a polygon.
-          Fill in the treatment details and click <strong>Submit</strong>.
+          You can upload multiple geometry files at once — supported formats are
+          .zip (shapefile), .kmz, .kml, .gpx, or .geojson. All files are combined
+          into a single polygon on submit. The app will auto-fill Management Area,
+          date, and acreage where possible. For line-based treatments (such as aquatic
+          shredding), enter the machine swath width in feet to buffer the lines into a polygon.
+        </p>
+        <p style="margin-top:8px;">If you enter a <strong>Contract Number</strong> that already exists in LM Treatments,
+          the form will auto-populate from the existing record and flag it as a merge.
+          Submitting will expand the existing polygon to include the new geometry —
+          no duplicate record is created. This is useful when project boundaries
+          arrive in separate files over time.
         </p>
       </div>
 
