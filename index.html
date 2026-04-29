@@ -664,6 +664,13 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       flex-shrink: 0; display: flex; gap: 8px; align-items: center;
     }
     #submit-status { font-size: 12px; flex: 1; }
+    #sf-contract-lookup {
+      font-size: 11px; margin-top: 5px; padding: 5px 8px;
+      border-radius: 4px; display: none;
+    }
+    #sf-contract-lookup.merge  { background: #fff4e0; color: #8a5700; border: 1px solid #f0c060; }
+    #sf-contract-lookup.ambig  { background: #fdecea; color: #8a1c1c; border: 1px solid #f0a0a0; }
+    #sf-contract-lookup.check  { background: #f5f5f5; color: #888;    border: 1px solid #ddd; }
     #submit-do-btn {
       padding: 7px 18px; background: #2d7a3a; color: white;
       border: none; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer;
@@ -911,6 +918,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           <select id="sf-fund-source" class="form-input"><option value="">— Select —</option></select>
         </div>
       </div>
+      <div id="sf-contract-lookup"></div>
       <div class="form-row">
         <label for="sf-total-cost">Total Cost ($)</label>
         <input type="number" id="sf-total-cost" class="form-input" min="0" step="0.01">
@@ -2361,6 +2369,7 @@ require([
   let submitGeometries  = [];
   let submitLines       = [];   // raw line geometries pending buffer
   let submitCategory    = "";
+  let mergeTarget       = null; // { objectId, geometry } when contract matches existing record
   let submitPreviewLayer = new GraphicsLayer({ title: "Submit Preview", listMode: "hide" });
 
   const submitPanel = document.getElementById("submit-panel");
@@ -2385,6 +2394,9 @@ require([
 
   function resetSubmitForm() {
     submitCategory = "";
+    mergeTarget = null;
+    const lkp = document.getElementById("sf-contract-lookup");
+    lkp.textContent = ""; lkp.style.display = "none"; lkp.className = "";
     document.querySelectorAll(".submit-cat-pill").forEach(p => p.classList.remove("active"));
     document.querySelectorAll(".cat-fields").forEach(el => el.classList.remove("active"));
     ["sf-area","sf-region","sf-type","sf-status","sf-objective","sf-treated-by","sf-fund-source"]
@@ -2406,6 +2418,37 @@ require([
   function checkSubmitReady() {
     const ok = submitGeometries.length > 0 && submitCategory !== "" && document.getElementById("sf-area").value !== "";
     document.getElementById("submit-do-btn").disabled = !ok;
+  }
+
+  async function checkContractNum() {
+    const val = document.getElementById("sf-contract-num").value.trim();
+    const lkp = document.getElementById("sf-contract-lookup");
+    mergeTarget = null;
+    if (!val) { lkp.style.display = "none"; lkp.className = ""; return; }
+
+    lkp.className = "check"; lkp.textContent = "Checking…"; lkp.style.display = "block";
+    try {
+      const q = treatmentLayer.createQuery();
+      q.where = `CONTRACT_NUM = '${val.replace(/'/g, "''")}'`;
+      q.outFields = ["OBJECTID", "ACRES"];
+      q.returnGeometry = true;
+      const res = await treatmentLayer.queryFeatures(q);
+      const feats = res.features;
+
+      if (feats.length === 0) {
+        lkp.style.display = "none"; lkp.className = "";
+      } else if (feats.length === 1) {
+        mergeTarget = { objectId: feats[0].attributes.OBJECTID, geometry: feats[0].geometry };
+        lkp.className = "merge";
+        lkp.textContent = `Existing record found — new geometry will be merged with this contract on submit.`;
+      } else {
+        lkp.className = "ambig";
+        lkp.textContent = `${feats.length} records found for this contract — merge is ambiguous. Submitting as a new record.`;
+      }
+    } catch(e) {
+      lkp.style.display = "none"; lkp.className = "";
+      console.warn("Contract lookup error:", e);
+    }
   }
 
   // ── File Parsing ─────────────────────────────────────────
@@ -2848,10 +2891,21 @@ require([
         TARGET_SPECIES: gv("sf-target-species"), APPLICATION_METHOD: gv("sf-app-method")
       });
 
-      const result = await treatmentLayer.applyEdits({ addFeatures: [new Graphic({ geometry: finalGeom, attributes: attrs })] });
-      if (result.addFeatureResults?.[0]?.error) throw new Error(result.addFeatureResults[0].error.message);
-
-      status.style.color = "#2d7a3a"; status.textContent = "Submitted successfully!";
+      let result;
+      if (mergeTarget) {
+        const merged = geometryEngine.union([mergeTarget.geometry, finalGeom]);
+        const newAcres = Math.abs(geometryEngine.geodesicArea(merged, "acres"));
+        result = await treatmentLayer.applyEdits({
+          updateFeatures: [new Graphic({ geometry: merged, attributes: { OBJECTID: mergeTarget.objectId, ACRES: parseFloat(newAcres.toFixed(1)) } })]
+        });
+        if (result.updateFeatureResults?.[0]?.error) throw new Error(result.updateFeatureResults[0].error.message);
+        status.style.color = "#2d7a3a";
+        status.textContent = `Merged — record now covers ${newAcres.toFixed(1)} acres.`;
+      } else {
+        result = await treatmentLayer.applyEdits({ addFeatures: [new Graphic({ geometry: finalGeom, attributes: attrs })] });
+        if (result.addFeatureResults?.[0]?.error) throw new Error(result.addFeatureResults[0].error.message);
+        status.style.color = "#2d7a3a"; status.textContent = "Submitted successfully!";
+      }
       setTimeout(() => { closeSubmitPanel(); refreshFromExtent(); }, 1500);
     } catch(e) {
       console.error("Submit error:", e);
@@ -2865,6 +2919,7 @@ require([
   document.getElementById("submit-panel-close").addEventListener("click", closeSubmitPanel);
   document.getElementById("submit-cancel-btn").addEventListener("click", closeSubmitPanel);
   document.getElementById("submit-do-btn").addEventListener("click", doSubmitTreatment);
+  document.getElementById("sf-contract-num").addEventListener("blur", checkContractNum);
 
   const dropZone = document.getElementById("submit-drop-zone");
   const fileInput = document.getElementById("submit-file-input");
