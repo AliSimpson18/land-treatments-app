@@ -827,10 +827,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     <div class="submit-section">
       <div class="submit-section-title">1. Upload Geometry</div>
       <div class="file-drop-zone" id="submit-drop-zone">
-        <strong>Drop file here or click to browse</strong>
-        <p>Accepted: .zip (shapefile) &nbsp;·&nbsp; .gpx &nbsp;·&nbsp; .kml &nbsp;·&nbsp; .kmz &nbsp;·&nbsp; .geojson</p>
+        <strong>Drop files here or click to browse</strong>
+        <p>Multiple files accepted &nbsp;·&nbsp; .zip (shapefile) &nbsp;·&nbsp; .gpx &nbsp;·&nbsp; .kml &nbsp;·&nbsp; .kmz &nbsp;·&nbsp; .geojson</p>
       </div>
-      <input type="file" id="submit-file-input" accept=".zip,.gpx,.kml,.kmz,.geojson,.json">
+      <input type="file" id="submit-file-input" accept=".zip,.gpx,.kml,.kmz,.geojson,.json" multiple>
       <div id="submit-geometry-info"></div>
       <div id="submit-swath-row">
         <label for="submit-swath-input">Line treatment detected. Swath width:</label>
@@ -2759,57 +2759,71 @@ require([
     return { polys, lines, date: "" };
   }
 
-  async function handleSubmitFile(file) {
+  async function handleMultipleFiles(files) {
     clearSubmitGeometry();
-    const errEl      = document.getElementById("submit-geometry-error");
-    const infoEl     = document.getElementById("submit-geometry-info");
-    const swathRow   = document.getElementById("submit-swath-row");
-    try {
-      const ext = file.name.split(".").pop().toLowerCase();
-      let polys = [], lines = [], date = "";
+    const errEl    = document.getElementById("submit-geometry-error");
+    const infoEl   = document.getElementById("submit-geometry-info");
+    const swathRow = document.getElementById("submit-swath-row");
 
-      const header = new Uint8Array(await file.slice(0, 4).arrayBuffer());
-      const isZip  = header[0] === 0x50 && header[1] === 0x4B && header[2] === 0x03 && header[3] === 0x04;
+    const allPolys = [], allLines = [], errors = [];
+    let latestDate = "";
 
-      if      (ext === "zip")                       ({ polys, lines, date } = await parseShapefile(await file.arrayBuffer()));
-      else if (ext === "kmz" || (isZip && ext === "kml")) ({ polys, lines, date } = await parseKMZ(await file.arrayBuffer()));
-      else if (ext === "gpx")                       ({ polys, lines, date } = parseGPX(await file.text()));
-      else if (ext === "kml")                       ({ polys, lines, date } = parseKML(await file.text()));
-      else if (ext === "geojson" || ext === "json") ({ polys, lines, date } = parseGeoJSON(await file.text()));
-      else throw new Error("Unsupported file type. Use .zip (shapefile), .gpx, .kml, .kmz, or .geojson");
+    for (const file of files) {
+      try {
+        const ext    = file.name.split(".").pop().toLowerCase();
+        const header = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+        const isZip  = header[0] === 0x50 && header[1] === 0x4B && header[2] === 0x03 && header[3] === 0x04;
+        let polys = [], lines = [], date = "";
 
-      if (!polys.length && !lines.length) throw new Error("No polygon or line geometry found in file.");
+        if      (ext === "zip")                             ({ polys, lines, date } = await parseShapefile(await file.arrayBuffer()));
+        else if (ext === "kmz" || (isZip && ext === "kml")) ({ polys, lines, date } = await parseKMZ(await file.arrayBuffer()));
+        else if (ext === "gpx")                             ({ polys, lines, date } = parseGPX(await file.text()));
+        else if (ext === "kml")                             ({ polys, lines, date } = parseKML(await file.text()));
+        else if (ext === "geojson" || ext === "json")       ({ polys, lines, date } = parseGeoJSON(await file.text()));
+        else throw new Error(`Unsupported file type: ${file.name}`);
 
-      // Auto-fill date if found in file
-      if (date) {
-        document.getElementById("sf-complete-date").value = date;
-        document.getElementById("sf-fiscal-year").value   = calcFiscalYear(date);
+        if (!polys.length && !lines.length) throw new Error(`No geometry found in ${file.name}`);
+        allPolys.push(...polys);
+        allLines.push(...lines);
+        if (date && !latestDate) latestDate = date;
+      } catch(e) {
+        errors.push(e.message);
       }
+    }
 
-      if (polys.length) {
-        await finishPolyUpload(polys);
-      } else {
-        // Line-only file — store lines and ask for swath width
-        submitLines = lines;
-        swathRow.style.display = "flex";
-        errEl.style.display    = "none";
-        infoEl.textContent = `${lines.length} line segment${lines.length !== 1 ? "s" : ""} loaded · enter swath width to continue`;
-        infoEl.style.display = "block";
-        // Preview raw lines on map
-        submitPreviewLayer.removeAll();
-        lines.forEach(l => submitPreviewLayer.add(new Graphic({
-          geometry: l,
-          symbol: { type: "simple-line", color: [45,122,58,1], width: 2, style: "dash" }
-        })));
-        const exts = lines.map(l => l.extent).filter(Boolean);
-        if (exts.length) { let e = exts[0].clone(); exts.slice(1).forEach(x => { e = e.union(x); }); view.goTo(e.expand(2), { duration: 600 }); }
-        document.getElementById("submit-swath-input").focus();
-      }
-
-      errEl.style.display = "none";
-    } catch(e) {
-      errEl.textContent   = "Error: " + e.message;
+    if (errors.length) {
+      errEl.textContent   = errors.join(" | ");
       errEl.style.display = "block";
+    }
+    if (!allPolys.length && !allLines.length) return;
+
+    if (latestDate) {
+      document.getElementById("sf-complete-date").value = latestDate;
+      document.getElementById("sf-fiscal-year").value   = calcFiscalYear(latestDate);
+    }
+
+    const fileCount = files.length;
+    const fileLabel = fileCount > 1 ? ` from ${fileCount} files` : "";
+
+    if (allPolys.length) {
+      await finishPolyUpload(allPolys);
+      if (fileCount > 1) {
+        infoEl.textContent = infoEl.textContent.replace(" loaded", ` loaded${fileLabel}`);
+      }
+    } else {
+      submitLines = allLines;
+      swathRow.style.display = "flex";
+      errEl.style.display    = "none";
+      infoEl.textContent = `${allLines.length} line segment${allLines.length !== 1 ? "s" : ""}${fileLabel} loaded · enter swath width to continue`;
+      infoEl.style.display = "block";
+      submitPreviewLayer.removeAll();
+      allLines.forEach(l => submitPreviewLayer.add(new Graphic({
+        geometry: l,
+        symbol: { type: "simple-line", color: [45,122,58,1], width: 2, style: "dash" }
+      })));
+      const exts = allLines.map(l => l.extent).filter(Boolean);
+      if (exts.length) { let e = exts[0].clone(); exts.slice(1).forEach(x => { e = e.union(x); }); view.goTo(e.expand(2), { duration: 600 }); }
+      document.getElementById("submit-swath-input").focus();
     }
   }
 
@@ -2980,7 +2994,7 @@ require([
   const dropZone = document.getElementById("submit-drop-zone");
   const fileInput = document.getElementById("submit-file-input");
   dropZone.addEventListener("click", () => fileInput.click());
-  fileInput.addEventListener("change", e => { if (e.target.files[0]) handleSubmitFile(e.target.files[0]); });
+  fileInput.addEventListener("change", e => { if (e.target.files.length) handleMultipleFiles(e.target.files); });
   document.getElementById("submit-swath-input").addEventListener("change", e => {
     const ft = parseFloat(e.target.value);
     if (ft > 0 && submitLines.length) applySwathBuffer(ft);
@@ -2989,7 +3003,7 @@ require([
   dropZone.addEventListener("dragleave", ()  => dropZone.classList.remove("dragover"));
   dropZone.addEventListener("drop", e => {
     e.preventDefault(); dropZone.classList.remove("dragover");
-    if (e.dataTransfer.files[0]) handleSubmitFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files.length) handleMultipleFiles(e.dataTransfer.files);
   });
 
   document.querySelectorAll(".submit-cat-pill").forEach(pill => {
