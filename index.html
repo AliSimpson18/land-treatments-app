@@ -816,6 +816,15 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   <div id="submit-panel-body">
 
     <div class="submit-section">
+      <div class="submit-section-title">Contract Number</div>
+      <div class="form-row">
+        <label for="sf-contract-num">Contract Number</label>
+        <input type="text" id="sf-contract-num" class="form-input">
+      </div>
+      <div id="sf-contract-lookup"></div>
+    </div>
+
+    <div class="submit-section">
       <div class="submit-section-title">1. Upload Geometry</div>
       <div class="file-drop-zone" id="submit-drop-zone">
         <strong>Drop file here or click to browse</strong>
@@ -908,17 +917,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         <label for="sf-contractor">Contractor</label>
         <input type="text" id="sf-contractor" class="form-input">
       </div>
-      <div class="form-row-grid">
-        <div class="form-row">
-          <label for="sf-contract-num">Contract Number</label>
-          <input type="text" id="sf-contract-num" class="form-input">
-        </div>
-        <div class="form-row">
-          <label for="sf-fund-source">Fund Source</label>
-          <select id="sf-fund-source" class="form-input"><option value="">— Select —</option></select>
-        </div>
+      <div class="form-row">
+        <label for="sf-fund-source">Fund Source</label>
+        <select id="sf-fund-source" class="form-input"><option value="">— Select —</option></select>
       </div>
-      <div id="sf-contract-lookup"></div>
       <div class="form-row">
         <label for="sf-total-cost">Total Cost ($)</label>
         <input type="number" id="sf-total-cost" class="form-input" min="0" step="0.01">
@@ -2416,8 +2418,56 @@ require([
   }
 
   function checkSubmitReady() {
-    const ok = submitGeometries.length > 0 && submitCategory !== "" && document.getElementById("sf-area").value !== "";
+    const hasGeom = submitGeometries.length > 0;
+    const ok = mergeTarget
+      ? hasGeom
+      : hasGeom && submitCategory !== "" && document.getElementById("sf-area").value !== "";
     document.getElementById("submit-do-btn").disabled = !ok;
+  }
+
+  async function populateMergeFields(attrs) {
+    const setVal = (id, val) => {
+      const el = document.getElementById(id);
+      if (el && val != null && val !== "") el.value = val;
+    };
+    const epochToDateStr = ms => {
+      if (!ms) return null;
+      const d = new Date(ms);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    };
+
+    const cat = attrs.TREATMENT_CATEGORY;
+    if (cat) {
+      submitCategory = cat;
+      document.querySelectorAll(".submit-cat-pill").forEach(p => p.classList.toggle("active", p.dataset.cat === cat));
+      document.querySelectorAll(".cat-fields").forEach(el => el.classList.remove("active"));
+      const catEl = document.getElementById("sf-" + cat.toLowerCase() + "-fields");
+      if (catEl) catEl.classList.add("active");
+    }
+
+    setVal("sf-area", attrs.MANAGEMENT_AREA);
+    setVal("sf-region", attrs.REGION);
+    setVal("sf-type", attrs.TREATMENT_TYPE);
+    await refreshSubmitDetailOptions();
+    setVal("sf-detail", attrs.TREATMENT_DETAIL);
+    setVal("sf-status", attrs.TREATMENT_STATUS);
+    setVal("sf-objective", attrs.OBJECTIVE);
+    setVal("sf-treated-by", attrs.TREATED_BY);
+    setVal("sf-contractor", attrs.CONTRACTOR);
+    setVal("sf-fund-source", attrs.FUND_SOURCE);
+    setVal("sf-total-cost", attrs.TOTAL_COST);
+    setVal("sf-comments", attrs.COMMENTS);
+
+    const compStr = epochToDateStr(attrs.COMPLETE_DATE);
+    const startStr = epochToDateStr(attrs.START_DATE);
+    if (startStr) setVal("sf-start-date", startStr);
+    if (compStr) {
+      setVal("sf-complete-date", compStr);
+      document.getElementById("sf-fiscal-year").value = calcFiscalYear(compStr);
+    } else if (attrs.FISCAL_YEAR) {
+      setVal("sf-fiscal-year", attrs.FISCAL_YEAR);
+    }
+    if (attrs.ACRES != null) document.getElementById("sf-acres").value = attrs.ACRES.toFixed(1);
   }
 
   async function checkContractNum() {
@@ -2430,7 +2480,10 @@ require([
     try {
       const q = treatmentLayer.createQuery();
       q.where = `CONTRACT_NUM = '${val.replace(/'/g, "''")}'`;
-      q.outFields = ["OBJECTID", "ACRES"];
+      q.outFields = ["OBJECTID","ACRES","TREATMENT_CATEGORY","MANAGEMENT_AREA","REGION",
+                     "TREATMENT_TYPE","TREATMENT_DETAIL","TREATMENT_STATUS","OBJECTIVE",
+                     "START_DATE","COMPLETE_DATE","FISCAL_YEAR","TREATED_BY","CONTRACTOR",
+                     "FUND_SOURCE","TOTAL_COST","COMMENTS"];
       q.returnGeometry = true;
       const res = await treatmentLayer.queryFeatures(q);
       const feats = res.features;
@@ -2439,6 +2492,7 @@ require([
         lkp.style.display = "none"; lkp.className = "";
       } else if (feats.length === 1) {
         mergeTarget = { objectId: feats[0].attributes.OBJECTID, geometry: feats[0].geometry };
+        await populateMergeFields(feats[0].attributes);
         lkp.className = "merge";
         lkp.textContent = `Existing record found — new geometry will be merged with this contract on submit.`;
       } else {
@@ -2449,6 +2503,7 @@ require([
       lkp.style.display = "none"; lkp.className = "";
       console.warn("Contract lookup error:", e);
     }
+    checkSubmitReady();
   }
 
   // ── File Parsing ─────────────────────────────────────────
