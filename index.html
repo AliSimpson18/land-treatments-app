@@ -2485,6 +2485,7 @@ require([
                      "START_DATE","COMPLETE_DATE","FISCAL_YEAR","TREATED_BY","CONTRACTOR",
                      "FUND_SOURCE","TOTAL_COST","COMMENTS"];
       q.returnGeometry = true;
+      q.outSpatialReference = { wkid: 4326 };
       const res = await treatmentLayer.queryFeatures(q);
       const feats = res.features;
 
