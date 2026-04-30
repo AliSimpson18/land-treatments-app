@@ -281,6 +281,18 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     .result-item[data-cat="Mechanical"]::before { background: #378ADD; }
     .result-item[data-cat="Chemical"]::before   { background: #7F77DD; }
     .result-item[data-cat="Invasive"]::before   { background: #D94F8A; }
+    .active-tag {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      color: #2E6DA4;
+      border: 1px solid #2E6DA4;
+      border-radius: 3px;
+      padding: 0 4px;
+      margin-left: 4px;
+      vertical-align: middle;
+      line-height: 16px;
+    }
     .invasive-tag {
       display: inline-block;
       font-size: 10px;
@@ -1366,6 +1378,24 @@ require([
     }
   });
 
+  const activeLayer = new FeatureLayer({
+    url: TREATMENT_URL,
+    outFields: ["OBJECTID"],
+    definitionExpression: "TREATMENT_STATUS = 'In Progress'",
+    title: "Active Treatments",
+    popupEnabled: false,
+    listMode: "hide",
+    renderer: {
+      type: "simple",
+      symbol: {
+        type: "simple-fill",
+        style: "forward-diagonal",
+        color: [0, 0, 0, 0.28],
+        outline: { type: "simple-line", color: [0, 0, 0, 0.45], width: 0.5 }
+      }
+    }
+  });
+
   const mgmtLayer = new FeatureLayer({
     url: MGMT_URL,
     outFields: ["CONSERVATION_AREA","LM_REGION"],
@@ -1415,7 +1445,7 @@ require([
   // ── Map & View ───────────────────────────────────────────
   const hoverLayer = new GraphicsLayer({ listMode: "hide" });
   const pinLayer   = new GraphicsLayer({ listMode: "hide" });
-  const map  = new Map({ basemap: "topo-vector", layers: [mgmtLayer, invLineLayer, invAreaLayer, treatmentLayer, hoverLayer, pinLayer] });
+  const map  = new Map({ basemap: "topo-vector", layers: [mgmtLayer, invLineLayer, invAreaLayer, treatmentLayer, activeLayer, hoverLayer, pinLayer] });
   const view = new MapView({
     container: "viewDiv",
     map,
@@ -1513,12 +1543,15 @@ require([
         div.className = "result-item" + (String(a.OBJECTID) === selectedKey ? " selected" : "");
         div.dataset.cat = cat;
         div.dataset.key = String(a.OBJECTID);
+        const isActive = a.TREATMENT_STATUS === "In Progress";
         const line2 = [cat, a.TREATMENT_TYPE, a.TREATMENT_DETAIL].filter(Boolean).join(" · ");
         const acStr = a.ACRES ? Number(a.ACRES).toLocaleString("en-US",{maximumFractionDigits:1}) + " ac" : "";
-        const dtStr = a.COMPLETE_DATE ? new Date(a.COMPLETE_DATE).toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"}) : (a.FISCAL_YEAR || "");
+        const dtStr = a.COMPLETE_DATE
+          ? new Date(a.COMPLETE_DATE).toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"})
+          : (isActive ? "In Progress" : (a.FISCAL_YEAR || ""));
         const line3 = [dtStr, acStr].filter(Boolean).join(" // ");
         div.innerHTML = `
-          <div class="res-title">${esc(a.MANAGEMENT_AREA || "Unknown Area")}</div>
+          <div class="res-title">${esc(a.MANAGEMENT_AREA || "Unknown Area")}${isActive ? '<span class="active-tag">Active</span>' : ""}</div>
           <div class="res-line2">${esc(line2)}</div>
           <div class="res-line3">${esc(line3)}</div>`;
         div.addEventListener("mouseenter", () => {
@@ -1643,6 +1676,9 @@ require([
 
       const combined = [...lmFeatures, ...invFeatures];
       combined.sort((a, b) => {
+        const aActive = !a._invasive && a.attributes.TREATMENT_STATUS === "In Progress";
+        const bActive = !b._invasive && b.attributes.TREATMENT_STATUS === "In Progress";
+        if (aActive !== bActive) return aActive ? -1 : 1;
         const da = a.attributes._workDT ?? a.attributes.COMPLETE_DATE ?? a.attributes.DT ?? 0;
         const db = b.attributes._workDT ?? b.attributes.COMPLETE_DATE ?? b.attributes.DT ?? 0;
         return db - da;
@@ -1693,6 +1729,9 @@ require([
 
       const combined = [...lmRes.features, ...invasiveFeats];
       combined.sort((a, b) => {
+        const aActive = !a._invasive && a.attributes.TREATMENT_STATUS === "In Progress";
+        const bActive = !b._invasive && b.attributes.TREATMENT_STATUS === "In Progress";
+        if (aActive !== bActive) return aActive ? -1 : 1;
         const da = a.attributes._workDT ?? a.attributes.COMPLETE_DATE ?? a.attributes.DT ?? 0;
         const db = b.attributes._workDT ?? b.attributes.COMPLETE_DATE ?? b.attributes.DT ?? 0;
         return db - da;
