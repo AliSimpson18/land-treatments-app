@@ -538,6 +538,47 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     }
     #submit-panel.open { transform: translateX(0); }
 
+    #edit-panel {
+      position: absolute; top: 0; right: 0; bottom: 0; width: 420px;
+      background: white; z-index: 20;
+      display: flex; flex-direction: column;
+      transform: translateX(100%); transition: transform 0.3s ease;
+      border-left: 1px solid #d0d0d0; box-shadow: -4px 0 16px rgba(0,0,0,0.15);
+    }
+    #edit-panel.open { transform: translateX(0); }
+    #edit-panel-header {
+      background: #1a4f72; color: white; padding: 13px 16px 11px;
+      display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;
+    }
+    #edit-panel-header h2 { font-size: 14px; font-weight: 600; }
+    #edit-panel-close {
+      background: none; border: 1px solid rgba(255,255,255,0.4); color: white;
+      border-radius: 3px; cursor: pointer; padding: 2px 7px; font-size: 14px;
+    }
+    #edit-panel-body { flex: 1; overflow-y: auto; padding: 14px 16px; }
+    #edit-panel-footer {
+      padding: 12px 16px; border-top: 1px solid #e0e0e0; background: white;
+      flex-shrink: 0; display: flex; gap: 8px; align-items: center;
+    }
+    #edit-status { font-size: 12px; flex: 1; }
+    #edit-save-btn {
+      background: #1a4f72; color: white; border: none; border-radius: 5px;
+      padding: 7px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    #edit-save-btn:hover { background: #15405e; }
+    #edit-save-btn:disabled { opacity: 0.6; cursor: default; }
+    #edit-cancel-btn {
+      background: #eee; color: #333; border: none; border-radius: 5px;
+      padding: 7px 16px; font-size: 13px; cursor: pointer; font-family: inherit;
+    }
+    #edit-cancel-btn:hover { background: #ddd; }
+    #edit-record-btn {
+      display: none; background: none; border: 1px solid rgba(255,255,255,0.45);
+      color: white; border-radius: 4px; padding: 4px 10px; cursor: pointer;
+      font-size: 12px; font-family: inherit; flex-shrink: 0; margin-left: auto;
+    }
+    #edit-record-btn:hover { background: rgba(255,255,255,0.15); }
+
     /* ── Splash / Help modal ── */
     #splash-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.55);
@@ -766,6 +807,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         <button id="back-btn">&#8592; Back</button>
         <span id="detail-title"></span>
         <span id="detail-cat-badge"></span>
+        <button id="edit-record-btn">&#9998; Edit</button>
       </div>
       <div id="detail-body"></div>
     </div>
@@ -995,6 +1037,180 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   </div>
 </div>
 
+<div id="edit-panel">
+  <div id="edit-panel-header">
+    <h2>Edit Treatment</h2>
+    <button id="edit-panel-close">&times;</button>
+  </div>
+  <div id="edit-panel-body">
+
+    <div class="submit-section">
+      <div class="submit-section-title">Treatment Information</div>
+      <div class="form-row">
+        <label for="ef-category">Category</label>
+        <select id="ef-category" class="form-input">
+          <option value="">— Select —</option>
+          <option value="Forestry">Forestry</option>
+          <option value="Fire">Fire</option>
+          <option value="Mechanical">Mechanical</option>
+          <option value="Chemical">Chemical</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="ef-type">Treatment Type</label>
+        <input type="text" id="ef-type" class="form-input">
+      </div>
+      <div class="form-row">
+        <label for="ef-detail">Treatment Detail</label>
+        <input type="text" id="ef-detail" class="form-input">
+      </div>
+      <div class="form-row">
+        <label for="ef-status">Treatment Status</label>
+        <select id="ef-status" class="form-input">
+          <option value="">— Select —</option>
+          <option value="Complete">Complete</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Pending">Pending</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="ef-review-status">Review Status</label>
+        <select id="ef-review-status" class="form-input">
+          <option value="">— Select —</option>
+          <option value="Pending">Pending</option>
+          <option value="Approved">Approved</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="ef-objective">Objective</label>
+        <input type="text" id="ef-objective" class="form-input">
+      </div>
+    </div>
+
+    <div class="submit-section">
+      <div class="submit-section-title">Location</div>
+      <div class="form-row">
+        <label for="ef-area">Management Area</label>
+        <input type="text" id="ef-area" class="form-input">
+      </div>
+      <div class="form-row">
+        <label for="ef-region">Region</label>
+        <input type="text" id="ef-region" class="form-input">
+      </div>
+    </div>
+
+    <div class="submit-section">
+      <div class="submit-section-title">Dates &amp; Area</div>
+      <div class="form-row-grid">
+        <div class="form-row">
+          <label for="ef-start-date">Start Date</label>
+          <input type="date" id="ef-start-date" class="form-input">
+        </div>
+        <div class="form-row">
+          <label for="ef-complete-date">Complete Date</label>
+          <input type="date" id="ef-complete-date" class="form-input">
+        </div>
+      </div>
+      <div class="form-row-grid">
+        <div class="form-row">
+          <label for="ef-fiscal-year">Fiscal Year</label>
+          <input type="text" id="ef-fiscal-year" class="form-input" placeholder="e.g. 2025-26">
+        </div>
+        <div class="form-row">
+          <label for="ef-acres">Acres</label>
+          <input type="number" id="ef-acres" class="form-input" step="0.1" min="0">
+        </div>
+      </div>
+    </div>
+
+    <div class="submit-section">
+      <div class="submit-section-title">Administration</div>
+      <div class="form-row">
+        <label for="ef-treated-by">Treated By</label>
+        <input type="text" id="ef-treated-by" class="form-input">
+      </div>
+      <div class="form-row">
+        <label for="ef-contractor">Contractor</label>
+        <input type="text" id="ef-contractor" class="form-input">
+      </div>
+      <div class="form-row">
+        <label for="ef-contract-num">Contract Number</label>
+        <input type="text" id="ef-contract-num" class="form-input">
+      </div>
+      <div class="form-row">
+        <label for="ef-fund-source">Fund Source</label>
+        <input type="text" id="ef-fund-source" class="form-input">
+      </div>
+      <div class="form-row-grid">
+        <div class="form-row">
+          <label for="ef-total-cost">Total Cost ($)</label>
+          <input type="number" id="ef-total-cost" class="form-input" min="0" step="0.01">
+        </div>
+        <div class="form-row">
+          <label for="ef-cost-per-acre">Cost / Acre ($)</label>
+          <input type="number" id="ef-cost-per-acre" class="form-input" min="0" step="0.01">
+        </div>
+      </div>
+    </div>
+
+    <div class="submit-section cat-fields" id="ef-forestry-fields">
+      <div class="submit-section-title">Forestry Details</div>
+      <div class="form-row-grid">
+        <div class="form-row"><label for="ef-sale-name">Sale Name</label><input type="text" id="ef-sale-name" class="form-input"></div>
+        <div class="form-row"><label for="ef-stand-id">Stand ID</label><input type="text" id="ef-stand-id" class="form-input"></div>
+      </div>
+      <div class="form-row"><label for="ef-silv-type">Silviculture Type</label><input type="text" id="ef-silv-type" class="form-input"></div>
+      <div class="form-row"><label for="ef-species">Species</label><input type="text" id="ef-species" class="form-input"></div>
+      <div class="form-row"><label for="ef-site-prep">Site Prep Method</label><input type="text" id="ef-site-prep" class="form-input"></div>
+      <div class="form-row"><label for="ef-herb-rx">Herbicide Rx</label><input type="text" id="ef-herb-rx" class="form-input"></div>
+      <div class="form-row"><label for="ef-herb-app-date">Herb Application Date</label><input type="date" id="ef-herb-app-date" class="form-input"></div>
+      <div class="form-row-grid">
+        <div class="form-row"><label for="ef-seedling-type">Seedling Type</label><input type="text" id="ef-seedling-type" class="form-input"></div>
+        <div class="form-row"><label for="ef-planting-method">Planting Method</label><input type="text" id="ef-planting-method" class="form-input"></div>
+      </div>
+      <div class="form-row-grid">
+        <div class="form-row"><label for="ef-planting-density">Planting Density (TPA)</label><input type="number" id="ef-planting-density" class="form-input"></div>
+        <div class="form-row"><label for="ef-seed-source">Seed Source</label><input type="text" id="ef-seed-source" class="form-input"></div>
+      </div>
+      <div class="form-row-grid">
+        <div class="form-row"><label for="ef-init-stocking">Initial Stocking</label><input type="number" id="ef-init-stocking" class="form-input"></div>
+        <div class="form-row"><label for="ef-pct-survival">% Survival</label><input type="number" id="ef-pct-survival" class="form-input" min="0" max="100"></div>
+      </div>
+    </div>
+
+    <div class="submit-section cat-fields" id="ef-fire-fields">
+      <div class="submit-section-title">Fire Details</div>
+      <div class="form-row"><label for="ef-auth-num">Authorization Number</label><input type="text" id="ef-auth-num" class="form-input"></div>
+      <div class="form-row"><label for="ef-fmu-num">FMU Number</label><input type="text" id="ef-fmu-num" class="form-input"></div>
+      <div class="form-row"><label for="ef-burn-boss">Burn Boss</label><input type="text" id="ef-burn-boss" class="form-input"></div>
+      <div class="form-row"><label for="ef-crew">Crew</label><input type="text" id="ef-crew" class="form-input"></div>
+      <div class="form-row"><label for="ef-acres-burned">Acres Burned</label><input type="number" id="ef-acres-burned" class="form-input" min="0" step="0.1"></div>
+    </div>
+
+    <div class="submit-section cat-fields" id="ef-chemical-fields">
+      <div class="submit-section-title">Chemical Details</div>
+      <div class="form-row"><label for="ef-chemical">Chemical</label><input type="text" id="ef-chemical" class="form-input"></div>
+      <div class="form-row"><label for="ef-chemical-rate">Chemical Rate</label><input type="text" id="ef-chemical-rate" class="form-input"></div>
+      <div class="form-row"><label for="ef-target-species">Target Species</label><input type="text" id="ef-target-species" class="form-input"></div>
+      <div class="form-row"><label for="ef-app-method">Application Method</label><input type="text" id="ef-app-method" class="form-input"></div>
+    </div>
+
+    <div class="submit-section">
+      <div class="submit-section-title">Comments</div>
+      <div class="form-row">
+        <label for="ef-comments">Comments</label>
+        <textarea id="ef-comments" class="form-input"></textarea>
+      </div>
+    </div>
+
+  </div>
+  <div id="edit-panel-footer">
+    <span id="edit-status"></span>
+    <button id="edit-cancel-btn">Cancel</button>
+    <button id="edit-save-btn">Save Changes</button>
+  </div>
+</div>
+
 <script>
 require([
   "esri/config",
@@ -1022,9 +1238,13 @@ require([
     redirectUri: "https://alisimpson18.github.io/land-treatments-app/"
   })]);
 
+  const EDIT_USER = "ASimpson_sjr";
+  let canEdit = false;
+
   esriId.checkSignInStatus(PORTAL + "/sharing")
-    .then(initApp)
-    .catch(() => esriId.getCredential(PORTAL + "/sharing"));
+    .then(cred => { canEdit = (cred.userId === EDIT_USER); initApp(); })
+    .catch(() => esriId.getCredential(PORTAL + "/sharing")
+      .then(cred => { canEdit = (cred.userId === EDIT_USER); initApp(); }));
 
   function initApp() {
 
@@ -1054,7 +1274,7 @@ require([
     "SEED_SOURCE","INITIAL_STOCKING","PERCENT_SURVIVAL",
     "AUTHORIZATION_NUM","FMU_NUM","BURN_BOSS","CREW","ACRES_BURNED",
     "CHEMICAL","CHEMICAL_RATE","TARGET_SPECIES","APPLICATION_METHOD",
-    "COMMENTS"
+    "COMMENTS","REVIEW_STATUS"
   ];
 
   const DETAIL_SECTIONS = [
@@ -1082,7 +1302,8 @@ require([
     AUTHORIZATION_NUM:"Authorization No.", FMU_NUM:"FMU Number",
     BURN_BOSS:"Burn Boss", CREW:"Crew", ACRES_BURNED:"Acres Burned",
     CHEMICAL:"Chemical", CHEMICAL_RATE:"Chemical Rate",
-    TARGET_SPECIES:"Target Species", APPLICATION_METHOD:"Application Method"
+    TARGET_SPECIES:"Target Species", APPLICATION_METHOD:"Application Method",
+    REVIEW_STATUS:"Review Status"
   };
 
   const DATE_FIELDS = new Set(["START_DATE","COMPLETE_DATE","HERB_APP_DATE"]);
@@ -1090,6 +1311,8 @@ require([
   const ACRES_FIELDS = new Set(["ACRES","ACRES_BURNED"]);
 
   // ── State ────────────────────────────────────────────────
+  let currentDetailAttrs = null;
+
   let activeCats        = new Set(["Forestry","Fire","Mechanical","Chemical"]);
   let showInvasive      = false;
   let activeInvSpecies  = "";
@@ -1512,6 +1735,8 @@ require([
       }
     }).catch(() => {});
 
+    currentDetailAttrs = a;
+    document.getElementById("edit-record-btn").style.display = canEdit ? "inline-block" : "none";
     document.getElementById("detail-title").textContent     = a.MANAGEMENT_AREA || "Treatment Detail";
     document.getElementById("detail-cat-badge").textContent = cat;
     document.getElementById("detail-header").style.borderBottom = `3px solid ${CAT_COLOR[cat] || "#ccc"}`;
@@ -1550,6 +1775,8 @@ require([
   }
 
   async function openInvasiveDetail(feature) {
+    currentDetailAttrs = null;
+    document.getElementById("edit-record-btn").style.display = "none";
     // If from extent mode, do the chain query now before displaying
     if (feature._needsChainQuery) {
       const eodId = feature.attributes.IP_EOD_ID;
@@ -1687,7 +1914,10 @@ require([
   }
 
   function closeDetail() {
+    closeEditPanel();
     document.getElementById("detail-pane").classList.remove("open");
+    document.getElementById("edit-record-btn").style.display = "none";
+    currentDetailAttrs = null;
     selectedKey = null;
     document.querySelectorAll(".result-item").forEach(el => el.classList.remove("selected"));
     if (detailHighlight) { detailHighlight.remove(); detailHighlight = null; }
@@ -2983,6 +3213,166 @@ require([
       btn.disabled = false;
     }
   }
+
+  // ── Edit Panel ────────────────────────────────────────────
+  function msToDateStr(ms) {
+    if (ms == null) return "";
+    const d = new Date(ms);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  }
+
+  function openEditPanel(attrs) {
+    closeSubmitPanel();
+    const sv = (id, val) => { const el = document.getElementById(id); if (el) el.value = (val != null ? val : ""); };
+    sv("ef-category",        attrs.TREATMENT_CATEGORY  || "");
+    sv("ef-type",            attrs.TREATMENT_TYPE       || "");
+    sv("ef-detail",          attrs.TREATMENT_DETAIL     || "");
+    sv("ef-status",          attrs.TREATMENT_STATUS     || "");
+    sv("ef-review-status",   attrs.REVIEW_STATUS        || "");
+    sv("ef-objective",       attrs.OBJECTIVE            || "");
+    sv("ef-area",            attrs.MANAGEMENT_AREA      || "");
+    sv("ef-region",          attrs.REGION               || "");
+    sv("ef-start-date",      msToDateStr(attrs.START_DATE));
+    sv("ef-complete-date",   msToDateStr(attrs.COMPLETE_DATE));
+    sv("ef-fiscal-year",     attrs.FISCAL_YEAR          || "");
+    sv("ef-acres",           attrs.ACRES    != null ? attrs.ACRES    : "");
+    sv("ef-treated-by",      attrs.TREATED_BY           || "");
+    sv("ef-contractor",      attrs.CONTRACTOR           || "");
+    sv("ef-contract-num",    attrs.CONTRACT_NUM         || "");
+    sv("ef-fund-source",     attrs.FUND_SOURCE          || "");
+    sv("ef-total-cost",      attrs.TOTAL_COST     != null ? attrs.TOTAL_COST     : "");
+    sv("ef-cost-per-acre",   attrs.COST_PER_ACRE  != null ? attrs.COST_PER_ACRE  : "");
+    sv("ef-sale-name",       attrs.SALE_NAME            || "");
+    sv("ef-stand-id",        attrs.STAND_ID             || "");
+    sv("ef-silv-type",       attrs.SILVICULTURE_TYPE    || "");
+    sv("ef-species",         attrs.SPECIES              || "");
+    sv("ef-site-prep",       attrs.SITE_PREP_METHOD     || "");
+    sv("ef-herb-rx",         attrs.HERB_RX              || "");
+    sv("ef-herb-app-date",   msToDateStr(attrs.HERB_APP_DATE));
+    sv("ef-seedling-type",   attrs.SEEDLING_TYPE        || "");
+    sv("ef-planting-method", attrs.PLANTING_METHOD      || "");
+    sv("ef-planting-density",attrs.PLANTING_DENSITY != null ? attrs.PLANTING_DENSITY : "");
+    sv("ef-seed-source",     attrs.SEED_SOURCE          || "");
+    sv("ef-init-stocking",   attrs.INITIAL_STOCKING  != null ? attrs.INITIAL_STOCKING  : "");
+    sv("ef-pct-survival",    attrs.PERCENT_SURVIVAL  != null ? attrs.PERCENT_SURVIVAL  : "");
+    sv("ef-auth-num",        attrs.AUTHORIZATION_NUM   || "");
+    sv("ef-fmu-num",         attrs.FMU_NUM              || "");
+    sv("ef-burn-boss",       attrs.BURN_BOSS            || "");
+    sv("ef-crew",            attrs.CREW                 || "");
+    sv("ef-acres-burned",    attrs.ACRES_BURNED   != null ? attrs.ACRES_BURNED   : "");
+    sv("ef-chemical",        attrs.CHEMICAL             || "");
+    sv("ef-chemical-rate",   attrs.CHEMICAL_RATE        || "");
+    sv("ef-target-species",  attrs.TARGET_SPECIES       || "");
+    sv("ef-app-method",      attrs.APPLICATION_METHOD   || "");
+    sv("ef-comments",        attrs.COMMENTS             || "");
+
+    const cat = attrs.TREATMENT_CATEGORY || "";
+    document.getElementById("ef-forestry-fields").classList.toggle("active", cat === "Forestry");
+    document.getElementById("ef-fire-fields").classList.toggle("active", cat === "Fire");
+    document.getElementById("ef-chemical-fields").classList.toggle("active", cat === "Chemical");
+
+    document.getElementById("edit-status").textContent = "";
+    document.getElementById("edit-save-btn").disabled = false;
+    document.getElementById("edit-panel").classList.add("open");
+  }
+
+  function closeEditPanel() {
+    document.getElementById("edit-panel").classList.remove("open");
+  }
+
+  async function doSaveEdit() {
+    if (!currentDetailAttrs) return;
+    const btn    = document.getElementById("edit-save-btn");
+    const status = document.getElementById("edit-status");
+    btn.disabled = true;
+    status.style.color = "#555";
+    status.textContent = "Saving…";
+
+    const gv = id => { const v = (document.getElementById(id)?.value || "").trim(); return v || null; };
+    const gn = id => { const v = document.getElementById(id)?.value; return (v !== "" && v != null) ? parseFloat(v) : null; };
+    const gd = id => { const v = document.getElementById(id)?.value; return v ? new Date(v).getTime() : null; };
+
+    const attrs = {
+      OBJECTID:           currentDetailAttrs.OBJECTID,
+      TREATMENT_CATEGORY: gv("ef-category"),
+      TREATMENT_TYPE:     gv("ef-type"),
+      TREATMENT_DETAIL:   gv("ef-detail"),
+      TREATMENT_STATUS:   gv("ef-status"),
+      REVIEW_STATUS:      gv("ef-review-status"),
+      OBJECTIVE:          gv("ef-objective"),
+      MANAGEMENT_AREA:    gv("ef-area"),
+      REGION:             gv("ef-region"),
+      START_DATE:         gd("ef-start-date"),
+      COMPLETE_DATE:      gd("ef-complete-date"),
+      FISCAL_YEAR:        gv("ef-fiscal-year"),
+      ACRES:              gn("ef-acres"),
+      TREATED_BY:         gv("ef-treated-by"),
+      CONTRACTOR:         gv("ef-contractor"),
+      CONTRACT_NUM:       gv("ef-contract-num"),
+      FUND_SOURCE:        gv("ef-fund-source"),
+      TOTAL_COST:         gn("ef-total-cost"),
+      COST_PER_ACRE:      gn("ef-cost-per-acre"),
+      SALE_NAME:          gv("ef-sale-name"),
+      STAND_ID:           gv("ef-stand-id"),
+      SILVICULTURE_TYPE:  gv("ef-silv-type"),
+      SPECIES:            gv("ef-species"),
+      SITE_PREP_METHOD:   gv("ef-site-prep"),
+      HERB_RX:            gv("ef-herb-rx"),
+      HERB_APP_DATE:      gd("ef-herb-app-date"),
+      SEEDLING_TYPE:      gv("ef-seedling-type"),
+      PLANTING_METHOD:    gv("ef-planting-method"),
+      PLANTING_DENSITY:   gn("ef-planting-density"),
+      SEED_SOURCE:        gv("ef-seed-source"),
+      INITIAL_STOCKING:   gn("ef-init-stocking"),
+      PERCENT_SURVIVAL:   gn("ef-pct-survival"),
+      AUTHORIZATION_NUM:  gv("ef-auth-num"),
+      FMU_NUM:            gv("ef-fmu-num"),
+      BURN_BOSS:          gv("ef-burn-boss"),
+      CREW:               gv("ef-crew"),
+      ACRES_BURNED:       gn("ef-acres-burned"),
+      CHEMICAL:           gv("ef-chemical"),
+      CHEMICAL_RATE:      gv("ef-chemical-rate"),
+      TARGET_SPECIES:     gv("ef-target-species"),
+      APPLICATION_METHOD: gv("ef-app-method"),
+      COMMENTS:           gv("ef-comments"),
+    };
+
+    try {
+      const result = await treatmentLayer.applyEdits({
+        updateFeatures: [new Graphic({ attributes: attrs })]
+      });
+      const res = result.updateFeatureResults?.[0];
+      if (res?.error) throw new Error(res.error.message);
+
+      status.style.color = "#2d7a3a";
+      status.textContent = "Saved!";
+
+      setTimeout(async () => {
+        closeEditPanel();
+        const q = treatmentLayer.createQuery();
+        q.objectIds = [currentDetailAttrs.OBJECTID];
+        q.outFields = DISPLAY_FIELDS;
+        q.returnGeometry = false;
+        const fresh = await treatmentLayer.queryFeatures(q);
+        if (fresh.features.length) openDetail(fresh.features[0]);
+      }, 800);
+    } catch(e) {
+      status.style.color = "#c0392b";
+      status.textContent = "Error: " + e.message;
+      btn.disabled = false;
+    }
+  }
+
+  document.getElementById("edit-record-btn").addEventListener("click", () => { if (currentDetailAttrs) openEditPanel(currentDetailAttrs); });
+  document.getElementById("edit-panel-close").addEventListener("click", closeEditPanel);
+  document.getElementById("edit-cancel-btn").addEventListener("click", closeEditPanel);
+  document.getElementById("edit-save-btn").addEventListener("click", doSaveEdit);
+  document.getElementById("ef-category").addEventListener("change", e => {
+    const cat = e.target.value;
+    document.getElementById("ef-forestry-fields").classList.toggle("active", cat === "Forestry");
+    document.getElementById("ef-fire-fields").classList.toggle("active", cat === "Fire");
+    document.getElementById("ef-chemical-fields").classList.toggle("active", cat === "Chemical");
+  });
 
   // ── Submit Panel Event Listeners ─────────────────────────
   document.getElementById("submit-btn").addEventListener("click", openSubmitPanel);
