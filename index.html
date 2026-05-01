@@ -888,7 +888,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       <div class="file-drop-zone" id="submit-drop-zone">
         <strong>Drop files here or click to browse</strong>
         <p>Multiple files accepted &nbsp;·&nbsp; .zip (shapefile) &nbsp;·&nbsp; .gpx &nbsp;·&nbsp; .kml &nbsp;·&nbsp; .kmz &nbsp;·&nbsp; .geojson</p>
-        <button type="button" id="paste-clipboard-btn" onclick="pasteFromClipboard(event)">&#128203; Paste from Clipboard</button>
+        <button type="button" id="paste-clipboard-btn">&#128203; Paste from Clipboard</button>
       </div>
       <input type="file" id="submit-file-input" accept=".zip,.gpx,.kml,.kmz,.geojson,.json" multiple>
       <div id="submit-geometry-info"></div>
@@ -3119,8 +3119,7 @@ require([
     }
   }
 
-  async function pasteFromClipboard(evt) {
-    evt.stopPropagation();
+  async function pasteFromClipboard() {
     const errEl  = document.getElementById("submit-geometry-error");
     const infoEl = document.getElementById("submit-geometry-info");
     errEl.style.display = "none";
@@ -3462,6 +3461,7 @@ require([
   const dropZone = document.getElementById("submit-drop-zone");
   const fileInput = document.getElementById("submit-file-input");
   dropZone.addEventListener("click", () => fileInput.click());
+  document.getElementById("paste-clipboard-btn").addEventListener("click", e => { e.stopPropagation(); pasteFromClipboard(); });
   fileInput.addEventListener("change", e => { if (e.target.files.length) handleMultipleFiles(e.target.files); });
   document.getElementById("submit-swath-input").addEventListener("change", e => {
     const ft = parseFloat(e.target.value);
