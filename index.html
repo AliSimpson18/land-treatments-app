@@ -678,6 +678,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     .file-drop-zone:hover, .file-drop-zone.dragover { border-color: #1a4f72; background: #f0f5ff; }
     .file-drop-zone p { font-size: 11px; color: #888; margin-top: 4px; }
     .file-drop-zone strong { font-size: 13px; color: #555; }
+    #paste-clipboard-btn {
+      margin-top: 10px; padding: 5px 12px; font-size: 11px; cursor: pointer;
+      background: #fff; border: 1px solid #aaa; border-radius: 4px; color: #444;
+    }
+    #paste-clipboard-btn:hover { background: #f0f5ff; border-color: #1a4f72; color: #1a4f72; }
     #submit-file-input { display: none; }
     #submit-geometry-info {
       font-size: 11px; color: #2d7a3a; background: #edf7ef;
@@ -883,6 +888,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       <div class="file-drop-zone" id="submit-drop-zone">
         <strong>Drop files here or click to browse</strong>
         <p>Multiple files accepted &nbsp;·&nbsp; .zip (shapefile) &nbsp;·&nbsp; .gpx &nbsp;·&nbsp; .kml &nbsp;·&nbsp; .kmz &nbsp;·&nbsp; .geojson</p>
+        <button type="button" id="paste-clipboard-btn" onclick="pasteFromClipboard(event)">&#128203; Paste from Clipboard</button>
       </div>
       <input type="file" id="submit-file-input" accept=".zip,.gpx,.kml,.kmz,.geojson,.json" multiple>
       <div id="submit-geometry-info"></div>
@@ -3109,6 +3115,39 @@ require([
       await finishPolyUpload(buffered);
     } catch(e) {
       errEl.textContent   = "Buffer error: " + e.message;
+      errEl.style.display = "block";
+    }
+  }
+
+  async function pasteFromClipboard(evt) {
+    evt.stopPropagation();
+    const errEl  = document.getElementById("submit-geometry-error");
+    const infoEl = document.getElementById("submit-geometry-info");
+    errEl.style.display = "none";
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text.trim()) throw new Error("Clipboard is empty.");
+      const { polys, lines } = parseGeoJSON(text);
+      if (!polys.length && !lines.length) throw new Error("No polygon or line geometry found in clipboard data.");
+      if (polys.length) {
+        await finishPolyUpload(polys);
+      } else {
+        submitLines = lines;
+        const swathRow = document.getElementById("submit-swath-row");
+        swathRow.style.display = "flex";
+        infoEl.textContent = `${lines.length} line segment${lines.length !== 1 ? "s" : ""} loaded from clipboard · enter swath width to continue`;
+        infoEl.style.display = "block";
+        submitPreviewLayer.removeAll();
+        lines.forEach(l => submitPreviewLayer.add(new Graphic({
+          geometry: l,
+          symbol: { type: "simple-line", color: [45,122,58,1], width: 2, style: "dash" }
+        })));
+        const exts = lines.map(l => l.extent).filter(Boolean);
+        if (exts.length) { let e = exts[0].clone(); exts.slice(1).forEach(x => { e = e.union(x); }); view.goTo(e.expand(2), { duration: 600 }); }
+        document.getElementById("submit-swath-input").focus();
+      }
+    } catch(e) {
+      errEl.textContent   = "Clipboard paste failed: " + e.message;
       errEl.style.display = "block";
     }
   }
