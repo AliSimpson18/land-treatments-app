@@ -2223,7 +2223,10 @@ require([
   }
 
   function applyFilters() {
-    treatmentLayer.definitionExpression = buildWhere();
+    const where = buildWhere();
+    treatmentLayer.definitionExpression = where;
+    const baseWhere = where === "1=0" ? "1=0" : (where === "1=1" ? "TREATMENT_STATUS = 'In Progress'" : `(${where}) AND TREATMENT_STATUS = 'In Progress'`);
+    activeLayer.definitionExpression = baseWhere;
     refreshTypeOptions();
     refreshDetailOptions();
     if (clickMode) clearClick();
