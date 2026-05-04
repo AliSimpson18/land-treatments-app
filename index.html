@@ -796,6 +796,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         <div id="detail-ms-dropdown" class="multi-select-dropdown"></div>
       </div>
     </div>
+    <div class="dropdowns-grid" style="margin-top:6px">
+      <input type="text" id="contract-search" class="filter-select" placeholder="Search Contract #">
+      <input type="text" id="work-order-search" class="filter-select" placeholder="Search Work Order #">
+    </div>
     <div id="invasive-filters">
       <div class="invasive-filter-label">Invasive Treatments</div>
       <div class="dropdowns-grid">
@@ -881,6 +885,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         <input type="text" id="sf-contract-num" class="form-input">
       </div>
       <div id="sf-contract-lookup"></div>
+      <div class="form-row" style="margin-top:8px">
+        <label for="sf-work-order-num">Work Order Number</label>
+        <input type="text" id="sf-work-order-num" class="form-input">
+      </div>
     </div>
 
     <div class="submit-section">
@@ -1156,6 +1164,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         <input type="text" id="ef-contract-num" class="form-input">
       </div>
       <div class="form-row">
+        <label for="ef-work-order-num">Work Order Number</label>
+        <input type="text" id="ef-work-order-num" class="form-input">
+      </div>
+      <div class="form-row">
         <label for="ef-fund-source">Fund Source</label>
         <input type="text" id="ef-fund-source" class="form-input">
       </div>
@@ -1285,7 +1297,7 @@ require([
     "TREATMENT_STATUS","OBJECTIVE",
     "REGION","MANAGEMENT_AREA",
     "START_DATE","COMPLETE_DATE","FISCAL_YEAR","ACRES",
-    "TREATED_BY","CONTRACTOR","CONTRACT_NUM","FUND_SOURCE",
+    "TREATED_BY","CONTRACTOR","CONTRACT_NUM","WORK_ORDER_NUM","FUND_SOURCE",
     "TOTAL_COST","COST_PER_ACRE",
     "SALE_NAME","STAND_ID","SILVICULTURE_TYPE","SPECIES","SITE_PREP_METHOD",
     "HERB_RX","HERB_APP_DATE","SEEDLING_TYPE","PLANTING_METHOD","PLANTING_DENSITY",
@@ -1299,7 +1311,7 @@ require([
     { title: "Treatment",      fields: ["TREATMENT_CATEGORY","TREATMENT_TYPE","TREATMENT_DETAIL","TREATMENT_STATUS","OBJECTIVE"] },
     { title: "Location",       fields: ["REGION","MANAGEMENT_AREA"] },
     { title: "Dates & Area",   fields: ["START_DATE","COMPLETE_DATE","FISCAL_YEAR","ACRES"] },
-    { title: "Administration", fields: ["TREATED_BY","CONTRACTOR","CONTRACT_NUM","FUND_SOURCE","TOTAL_COST","COST_PER_ACRE"] },
+    { title: "Administration", fields: ["TREATED_BY","CONTRACTOR","CONTRACT_NUM","WORK_ORDER_NUM","FUND_SOURCE","TOTAL_COST","COST_PER_ACRE"] },
     { title: "Forestry",       fields: ["SALE_NAME","STAND_ID","SILVICULTURE_TYPE","SPECIES","SITE_PREP_METHOD","HERB_RX","HERB_APP_DATE","SEEDLING_TYPE","PLANTING_METHOD","PLANTING_DENSITY","SEED_SOURCE","INITIAL_STOCKING","PERCENT_SURVIVAL"] },
     { title: "Fire",           fields: ["AUTHORIZATION_NUM","FMU_NUM","BURN_BOSS","CREW","ACRES_BURNED"] },
     { title: "Chemical",       fields: ["CHEMICAL","CHEMICAL_RATE","TARGET_SPECIES","APPLICATION_METHOD"] }
@@ -1310,7 +1322,7 @@ require([
     TREATMENT_STATUS:"Status", OBJECTIVE:"Objective",
     REGION:"Region", MANAGEMENT_AREA:"Management Area",
     START_DATE:"Start Date", COMPLETE_DATE:"Complete Date", FISCAL_YEAR:"Fiscal Year", ACRES:"Acres",
-    TREATED_BY:"Treated By", CONTRACTOR:"Contractor", CONTRACT_NUM:"Contract No.",
+    TREATED_BY:"Treated By", CONTRACTOR:"Contractor", CONTRACT_NUM:"Contract No.", WORK_ORDER_NUM:"Work Order No.",
     FUND_SOURCE:"Fund Source", TOTAL_COST:"Total Cost", COST_PER_ACRE:"Cost / Acre",
     SALE_NAME:"Sale Name", STAND_ID:"Stand ID", SILVICULTURE_TYPE:"Silviculture Type",
     SPECIES:"Species", SITE_PREP_METHOD:"Site Prep Method", HERB_RX:"Herbicide Rx",
@@ -1338,10 +1350,12 @@ require([
   let defaultInvYears     = new Set();
   let defaultInvYearWhere = "1=1";
   let activeMgmtGeometry  = null;
-  let activeType      = "";
-  let activeYears     = new Set();
-  let activeArea      = "";
-  let activeDetails   = new Set();
+  let activeType          = "";
+  let activeYears         = new Set();
+  let activeArea          = "";
+  let activeDetails       = new Set();
+  let activeContractSearch  = "";
+  let activeWorkOrderSearch = "";
   let clickMode       = false;
   let hoverOid        = null;
   let currentFeatures         = [];
@@ -1471,6 +1485,8 @@ require([
     if (activeYears.size > 0) c.push(`FISCAL_YEAR IN (${[...activeYears].map(y => `'${y.replace(/'/g,"''")}'`).join(",")})`);
     if (activeArea) c.push(`MANAGEMENT_AREA = '${activeArea.replace(/'/g,"''")}'`);
     if (activeDetails.size > 0) c.push(`TREATMENT_DETAIL IN (${[...activeDetails].map(d => `'${d.replace(/'/g,"''")}'`).join(",")})`);
+    if (activeContractSearch)  c.push(`CONTRACT_NUM LIKE '%${activeContractSearch.replace(/'/g,"''").replace(/%/g,"\\%")}%'`);
+    if (activeWorkOrderSearch) c.push(`WORK_ORDER_NUM LIKE '%${activeWorkOrderSearch.replace(/'/g,"''").replace(/%/g,"\\%")}%'`);
     return c.length ? c.join(" AND ") : "1=1";
   }
 
@@ -2004,6 +2020,14 @@ require([
     });
   });
 
+  ["contract-search","work-order-search"].forEach(id => {
+    document.getElementById(id).addEventListener("input", e => {
+      if (id === "contract-search")   activeContractSearch  = e.target.value.trim();
+      if (id === "work-order-search") activeWorkOrderSearch = e.target.value.trim();
+      applyFilters();
+    });
+  });
+
   function updateYearBtn() {
     const btn = document.getElementById("year-ms-btn");
     if (activeYears.size === 0) {
@@ -2136,8 +2160,11 @@ require([
       else p.classList.add("active");
     });
     activeType = ""; activeYears = new Set(); activeArea = ""; activeDetails = new Set(); activeMgmtGeometry = null;
+    activeContractSearch = ""; activeWorkOrderSearch = "";
     document.getElementById("type-select").value = "";
     document.getElementById("area-select").value = "";
+    document.getElementById("contract-search").value = "";
+    document.getElementById("work-order-search").value = "";
     document.querySelectorAll("#year-ms-dropdown input[type=checkbox]").forEach(cb => cb.checked = false);
     updateYearBtn();
     document.querySelectorAll("#detail-ms-dropdown input[type=checkbox]").forEach(cb => cb.checked = false);
@@ -2763,34 +2790,67 @@ require([
   }
 
   async function checkContractNum() {
-    const val = document.getElementById("sf-contract-num").value.trim();
+    const contractVal  = document.getElementById("sf-contract-num").value.trim();
+    const workOrderVal = document.getElementById("sf-work-order-num").value.trim();
     const lkp = document.getElementById("sf-contract-lookup");
     mergeTarget = null;
-    if (!val) { lkp.style.display = "none"; lkp.className = ""; return; }
+    if (!contractVal) { lkp.style.display = "none"; lkp.className = ""; return; }
 
     lkp.className = "check"; lkp.textContent = "Checking…"; lkp.style.display = "block";
+    const outFields = ["OBJECTID","ACRES","TREATMENT_CATEGORY","MANAGEMENT_AREA","REGION",
+                       "TREATMENT_TYPE","TREATMENT_DETAIL","TREATMENT_STATUS","OBJECTIVE",
+                       "START_DATE","COMPLETE_DATE","FISCAL_YEAR","TREATED_BY","CONTRACTOR",
+                       "WORK_ORDER_NUM","FUND_SOURCE","TOTAL_COST","COMMENTS"];
     try {
-      const q = treatmentLayer.createQuery();
-      q.where = `CONTRACT_NUM = '${val.replace(/'/g, "''")}'`;
-      q.outFields = ["OBJECTID","ACRES","TREATMENT_CATEGORY","MANAGEMENT_AREA","REGION",
-                     "TREATMENT_TYPE","TREATMENT_DETAIL","TREATMENT_STATUS","OBJECTIVE",
-                     "START_DATE","COMPLETE_DATE","FISCAL_YEAR","TREATED_BY","CONTRACTOR",
-                     "FUND_SOURCE","TOTAL_COST","COMMENTS"];
-      q.returnGeometry = true;
-      q.outSpatialReference = { wkid: 4326 };
-      const res = await treatmentLayer.queryFeatures(q);
-      const feats = res.features;
+      const esc = v => v.replace(/'/g, "''");
 
-      if (feats.length === 0) {
-        lkp.style.display = "none"; lkp.className = "";
-      } else if (feats.length === 1) {
-        mergeTarget = { objectId: feats[0].attributes.OBJECTID, geometry: feats[0].geometry };
-        await populateMergeFields(feats[0].attributes);
-        lkp.className = "merge";
-        lkp.textContent = `Existing record found — new geometry will be merged with this contract on submit.`;
+      if (workOrderVal) {
+        // Contract + Work Order: look for exact match on both
+        const q = treatmentLayer.createQuery();
+        q.where = `CONTRACT_NUM = '${esc(contractVal)}' AND WORK_ORDER_NUM = '${esc(workOrderVal)}'`;
+        q.outFields = outFields; q.returnGeometry = true; q.outSpatialReference = { wkid: 4326 };
+        const res = await treatmentLayer.queryFeatures(q);
+
+        if (res.features.length === 1) {
+          mergeTarget = { objectId: res.features[0].attributes.OBJECTID, geometry: res.features[0].geometry };
+          await populateMergeFields(res.features[0].attributes);
+          lkp.className = "merge";
+          lkp.textContent = `Existing record found — new geometry will be merged with this work order on submit.`;
+        } else if (res.features.length > 1) {
+          lkp.className = "ambig";
+          lkp.textContent = `${res.features.length} records found for this work order — merge is ambiguous. Submitting as a new record.`;
+        } else {
+          // No match for contract+work order — check if contract exists at all
+          const cq = treatmentLayer.createQuery();
+          cq.where = `CONTRACT_NUM = '${esc(contractVal)}'`;
+          cq.outFields = ["OBJECTID"]; cq.returnGeometry = false;
+          const cRes = await treatmentLayer.queryFeatures(cq);
+          if (cRes.features.length > 0) {
+            lkp.className = "ambig";
+            lkp.textContent = `Existing contract — new work order. Submitting as a new record under this contract.`;
+          } else {
+            lkp.style.display = "none"; lkp.className = "";
+          }
+        }
       } else {
-        lkp.className = "ambig";
-        lkp.textContent = `${feats.length} records found for this contract — merge is ambiguous. Submitting as a new record.`;
+        // Contract # only — original behavior
+        const q = treatmentLayer.createQuery();
+        q.where = `CONTRACT_NUM = '${esc(contractVal)}'`;
+        q.outFields = outFields; q.returnGeometry = true; q.outSpatialReference = { wkid: 4326 };
+        const res = await treatmentLayer.queryFeatures(q);
+        const feats = res.features;
+
+        if (feats.length === 0) {
+          lkp.style.display = "none"; lkp.className = "";
+        } else if (feats.length === 1) {
+          mergeTarget = { objectId: feats[0].attributes.OBJECTID, geometry: feats[0].geometry };
+          await populateMergeFields(feats[0].attributes);
+          lkp.className = "merge";
+          lkp.textContent = `Existing record found — new geometry will be merged with this contract on submit.`;
+        } else {
+          lkp.className = "ambig";
+          lkp.textContent = `${feats.length} records found for this contract — merge is ambiguous. Submitting as a new record.`;
+        }
       }
     } catch(e) {
       lkp.style.display = "none"; lkp.className = "";
@@ -3258,7 +3318,7 @@ require([
         START_DATE:         gd("sf-start-date"), COMPLETE_DATE: gd("sf-complete-date"),
         FISCAL_YEAR:        gv("sf-fiscal-year"), ACRES:        gn("sf-acres"),
         TREATED_BY:         gv("sf-treated-by"),  CONTRACTOR:   gv("sf-contractor"),
-        CONTRACT_NUM:       gv("sf-contract-num"), FUND_SOURCE: gv("sf-fund-source"),
+        CONTRACT_NUM:       gv("sf-contract-num"), WORK_ORDER_NUM: gv("sf-work-order-num"), FUND_SOURCE: gv("sf-fund-source"),
         TOTAL_COST:         gn("sf-total-cost"),   COMMENTS:    gv("sf-comments"),
         REVIEW_STATUS:      "Pending",
         SUBMISSION_DATE:    Date.now()
@@ -3333,6 +3393,7 @@ require([
     sv("ef-treated-by",      attrs.TREATED_BY           || "");
     sv("ef-contractor",      attrs.CONTRACTOR           || "");
     sv("ef-contract-num",    attrs.CONTRACT_NUM         || "");
+    sv("ef-work-order-num",  attrs.WORK_ORDER_NUM       || "");
     sv("ef-fund-source",     attrs.FUND_SOURCE          || "");
     sv("ef-total-cost",      attrs.TOTAL_COST     != null ? attrs.TOTAL_COST     : "");
     sv("ef-cost-per-acre",   attrs.COST_PER_ACRE  != null ? attrs.COST_PER_ACRE  : "");
@@ -3403,6 +3464,7 @@ require([
       TREATED_BY:         gv("ef-treated-by"),
       CONTRACTOR:         gv("ef-contractor"),
       CONTRACT_NUM:       gv("ef-contract-num"),
+      WORK_ORDER_NUM:     gv("ef-work-order-num"),
       FUND_SOURCE:        gv("ef-fund-source"),
       TOTAL_COST:         gn("ef-total-cost"),
       COST_PER_ACRE:      gn("ef-cost-per-acre"),
@@ -3474,6 +3536,7 @@ require([
   document.getElementById("submit-cancel-btn").addEventListener("click", closeSubmitPanel);
   document.getElementById("submit-do-btn").addEventListener("click", doSubmitTreatment);
   document.getElementById("sf-contract-num").addEventListener("blur", checkContractNum);
+  document.getElementById("sf-work-order-num").addEventListener("blur", checkContractNum);
 
   const dropZone = document.getElementById("submit-drop-zone");
   const fileInput = document.getElementById("submit-file-input");
