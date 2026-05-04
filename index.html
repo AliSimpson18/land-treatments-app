@@ -1557,10 +1557,10 @@ require([
           : (isActive ? "In Progress" : (a.FISCAL_YEAR || ""));
         const line3 = [dtStr, acStr].filter(Boolean).join(" // ");
         const titleStr = (a.TREATMENT_TYPE === "Timber Harvest" && a.SALE_NAME)
-          ? `${a.MANAGEMENT_AREA || "Unknown Area"} — ${a.SALE_NAME}`
-          : (a.MANAGEMENT_AREA || "Unknown Area");
+          ? `${esc(a.MANAGEMENT_AREA || "Unknown Area")} <span style="font-weight:400">— ${esc(a.SALE_NAME)}</span>`
+          : esc(a.MANAGEMENT_AREA || "Unknown Area");
         div.innerHTML = `
-          <div class="res-title">${esc(titleStr)}${isActive ? '<span class="active-tag">Active</span>' : ""}</div>
+          <div class="res-title">${titleStr}${isActive ? '<span class="active-tag">Active</span>' : ""}</div>
           <div class="res-line2">${esc(line2)}</div>
           <div class="res-line3">${esc(line3)}</div>`;
         div.addEventListener("mouseenter", () => {
