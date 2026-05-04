@@ -1556,8 +1556,11 @@ require([
           ? new Date(a.COMPLETE_DATE).toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"})
           : (isActive ? "In Progress" : (a.FISCAL_YEAR || ""));
         const line3 = [dtStr, acStr].filter(Boolean).join(" // ");
+        const titleStr = (cat === "Timber" && a.SALE_NAME)
+          ? `${a.MANAGEMENT_AREA || "Unknown Area"} — ${a.SALE_NAME}`
+          : (a.MANAGEMENT_AREA || "Unknown Area");
         div.innerHTML = `
-          <div class="res-title">${esc(a.MANAGEMENT_AREA || "Unknown Area")}${isActive ? '<span class="active-tag">Active</span>' : ""}</div>
+          <div class="res-title">${esc(titleStr)}${isActive ? '<span class="active-tag">Active</span>' : ""}</div>
           <div class="res-line2">${esc(line2)}</div>
           <div class="res-line3">${esc(line3)}</div>`;
         div.addEventListener("mouseenter", () => {
