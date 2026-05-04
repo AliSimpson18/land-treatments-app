@@ -2543,18 +2543,7 @@ require([
     const conditions = [];
 
     if (activeInvSpecies) {
-      try {
-        const sq = invPopLayer.createQuery();
-        sq.where = `SPCS = '${activeInvSpecies.replace(/'/g,"''")}'`;
-        sq.outFields = ["GLOBALID"]; sq.returnGeometry = false;
-        const sRes = await invPopLayer.queryFeatures(sq);
-        if (sRes.features.length) {
-          const guids = sRes.features.map(f => `'${f.attributes.GLOBALID}'`).join(",");
-          conditions.push(`SPCS IN (${guids})`);
-        } else {
-          conditions.push("1=0");
-        }
-      } catch(e) {}
+      conditions.push(`SPCS = '${activeInvSpecies.replace(/'/g,"''")}'`);
     }
 
     if (activeInvYears.size > 0) {
