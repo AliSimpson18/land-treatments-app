@@ -2543,7 +2543,29 @@ require([
     const conditions = [];
 
     if (activeInvSpecies) {
-      conditions.push(`SPCS = '${activeInvSpecies.replace(/'/g,"''")}'`);
+      try {
+        const normGuid = g => { let s = String(g).trim(); if (!s.startsWith("{")) s = "{" + s; if (!s.endsWith("}")) s += "}"; return s; };
+        // Step 1: population records matching the species
+        const sq = invPopLayer.createQuery();
+        sq.where = `SPCS = '${activeInvSpecies.replace(/'/g,"''")}'`;
+        sq.outFields = ["GLOBALID"]; sq.returnGeometry = false;
+        const sRes = await invPopLayer.queryFeatures(sq);
+        if (!sRes.features.length) {
+          conditions.push("1=0");
+        } else {
+          const popGuids = sRes.features.map(f => `'${normGuid(f.attributes.GLOBALID)}'`).join(",");
+          // Step 2: work records linking to those populations
+          const wq = invWorkLayer.createQuery();
+          wq.where = `POP_GUID IN (${popGuids})`; wq.outFields = ["IP_EOD_ID"]; wq.returnGeometry = false;
+          const wRes = await invWorkLayer.queryFeatures(wq);
+          if (!wRes.features.length) {
+            conditions.push("1=0");
+          } else {
+            const eodIds = [...new Set(wRes.features.map(f => f.attributes.IP_EOD_ID).filter(Boolean))];
+            conditions.push(`IP_EOD_ID IN (${eodIds.map(fmtEodId).join(",")})`);
+          }
+        }
+      } catch(e) { conditions.push("1=0"); }
     }
 
     if (activeInvYears.size > 0) {
