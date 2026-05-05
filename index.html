@@ -808,6 +808,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           <button id="inv-year-ms-btn" class="multi-select-btn">All Fiscal Years</button>
           <div id="inv-year-ms-dropdown" class="multi-select-dropdown"></div>
         </div>
+        <input type="text" id="inv-ip-id-search"  class="filter-select" placeholder="Search IP ID">
+        <input type="text" id="inv-eod-id-search" class="filter-select" placeholder="Search IP EOD ID">
       </div>
     </div>
   </div>
@@ -1347,6 +1349,8 @@ require([
   let showInvasive      = false;
   let activeInvSpecies  = "";
   let activeInvYears    = new Set();
+  let activeInvIpId     = "";
+  let activeInvEodId    = "";
   let defaultInvYears     = new Set();
   let defaultInvYearWhere = "1=1";
   let activeMgmtGeometry  = null;
@@ -1430,8 +1434,8 @@ require([
     }
   });
 
-  const INV_LINE_FIELDS = ["OBJECTID","IP_EOD_ID","DT","SPCS","DENS","ACRS","DATA_COLL_NM","EOD_GUID","CMMT"];
-  const INV_AREA_FIELDS = ["OBJECTID","IP_EOD_ID","DT","SPCS","DENS","ACRS","INFESTED_ACRS","DATA_COLL_NM","CUR","EOD_GUID","CMMT"];
+  const INV_LINE_FIELDS = ["OBJECTID","IP_ID","IP_EOD_ID","DT","SPCS","DENS","ACRS","DATA_COLL_NM","EOD_GUID","CMMT"];
+  const INV_AREA_FIELDS = ["OBJECTID","IP_ID","IP_EOD_ID","DT","SPCS","DENS","ACRS","INFESTED_ACRS","DATA_COLL_NM","CUR","EOD_GUID","CMMT"];
 
   const invLineLayer = new FeatureLayer({
     url: INVASIVE_URL + "/2",
@@ -2147,10 +2151,13 @@ require([
     activeCats = new Set(["Forestry","Fire","Mechanical","Chemical"]);
     showInvasive = false;
     activeInvSpecies = ""; activeInvYears = new Set(defaultInvYears);
+    activeInvIpId = ""; activeInvEodId = "";
     invLineLayer.visible = invAreaLayer.visible = false;
     document.getElementById("invasive-filters").style.display = "none";
     invLineLayer.definitionExpression = invAreaLayer.definitionExpression = defaultInvYearWhere;
     document.getElementById("inv-species-select").value = "";
+    document.getElementById("inv-ip-id-search").value = "";
+    document.getElementById("inv-eod-id-search").value = "";
     document.querySelectorAll("#inv-year-ms-dropdown input[type=checkbox]").forEach(cb => {
       cb.checked = defaultInvYears.has(cb.value);
     });
@@ -2595,6 +2602,14 @@ require([
       } catch(e) { conditions.push("1=0"); }
     }
 
+    if (activeInvEodId) {
+      conditions.push(`IP_EOD_ID = ${fmtEodId(activeInvEodId)}`);
+    }
+
+    if (activeInvIpId) {
+      conditions.push(`IP_ID = ${fmtEodId(activeInvIpId)}`);
+    }
+
     if (activeInvYears.size > 0) {
       const yrClauses = [...activeInvYears].map(y => {
         const startYr = parseInt(y.split("-")[0]);
@@ -2631,6 +2646,16 @@ require([
 
   document.getElementById("inv-species-select").addEventListener("change", e => {
     activeInvSpecies = e.target.value;
+    applyInvasiveFilters();
+  });
+
+  document.getElementById("inv-ip-id-search").addEventListener("input", e => {
+    activeInvIpId = e.target.value.trim();
+    applyInvasiveFilters();
+  });
+
+  document.getElementById("inv-eod-id-search").addEventListener("input", e => {
+    activeInvEodId = e.target.value.trim();
     applyInvasiveFilters();
   });
 
