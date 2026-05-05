@@ -1339,6 +1339,7 @@ require([
   };
 
   const DATE_FIELDS = new Set(["START_DATE","COMPLETE_DATE","HERB_APP_DATE"]);
+  const utcDate = ms => { const d = new Date(ms); return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()); };
   const CURRENCY_FIELDS = new Set(["TOTAL_COST","COST_PER_ACRE"]);
   const ACRES_FIELDS = new Set(["ACRES","ACRES_BURNED"]);
 
@@ -1498,7 +1499,7 @@ require([
     if (val === null || val === undefined || val === "") return null;
     if (DATE_FIELDS.has(field)) {
       const d = new Date(val);
-      return isNaN(d) ? String(val) : d.toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"});
+      return isNaN(d) ? String(val) : utcDate(val).toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"});
     }
     if (CURRENCY_FIELDS.has(field)) return "$" + Number(val).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
     if (ACRES_FIELDS.has(field))    return Number(val).toLocaleString("en-US",{maximumFractionDigits:1}) + " ac";
@@ -1546,7 +1547,7 @@ require([
         const spcs  = a._speciesName || a.SPCS || "";
         const acStr = a.ACRS ? Number(a.ACRS).toLocaleString("en-US",{maximumFractionDigits:1}) + " ac" : "";
         const dtVal = a._workDT != null ? a._workDT : a.DT;
-        const dtStr = dtVal ? new Date(dtVal).toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"}) : "";
+        const dtStr = dtVal ? utcDate(dtVal).toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"}) : "";
         const herbStr = [a.HRBCID1, a.HRBCID2, a.HRBCID3].filter(Boolean).join(", ");
         div.innerHTML = `
           <div class="res-title">${esc(a.MGT_AREA || spcs || "Invasive Treatment")}<span class="invasive-tag">Invasive Plant</span></div>
@@ -1573,7 +1574,7 @@ require([
         const line2 = [cat, a.TREATMENT_TYPE, a.TREATMENT_DETAIL].filter(Boolean).join(" · ");
         const acStr = a.ACRES ? Number(a.ACRES).toLocaleString("en-US",{maximumFractionDigits:1}) + " ac" : "";
         const dtStr = a.COMPLETE_DATE
-          ? new Date(a.COMPLETE_DATE).toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"})
+          ? utcDate(a.COMPLETE_DATE).toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"})
           : (isActive ? "In Progress" : (a.FISCAL_YEAR || ""));
         const line3 = [dtStr, acStr].filter(Boolean).join(" // ");
         const titleStr = (a.TREATMENT_TYPE === "Timber Harvest" && a.SALE_NAME)
@@ -1920,7 +1921,7 @@ require([
       body.appendChild(secEl);
     }
 
-    const fmtDate = v => v ? new Date(v).toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"}) : "";
+    const fmtDate = v => v ? utcDate(v).toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"}) : "";
     const fmtNum  = v => v != null ? Number(v).toLocaleString("en-US",{maximumFractionDigits:1}) : "";
 
     addSection("Treatment", [
@@ -2407,7 +2408,7 @@ require([
 
   function buildInvasiveRows() {
     const headers = INV_EXPORT_FIELDS.map(f => f.label);
-    const fmtD = v => { const d = new Date(v); return isNaN(d) ? String(v) : d.toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"}); };
+    const fmtD = v => { const d = new Date(v); return isNaN(d) ? String(v) : utcDate(v).toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"}); };
     const rows = currentInvasiveFeatures.map(f =>
       INV_EXPORT_FIELDS.map(({ field, isDate }) => {
         const raw = f.attributes[field];
@@ -2437,7 +2438,7 @@ require([
             selectedFields.map(field => {
               const raw = f.attributes[field];
               if (raw === null || raw === undefined || raw === "") return "";
-              if (DATE_FIELDS.has(field)) { const d = new Date(raw); return isNaN(d) ? String(raw) : d.toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"}); }
+              if (DATE_FIELDS.has(field)) { const d = new Date(raw); return isNaN(d) ? String(raw) : utcDate(raw).toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"}); }
               return raw;
             })
           );
@@ -2459,7 +2460,7 @@ require([
           selectedFields.map(field => {
             const raw = f.attributes[field];
             if (raw === null || raw === undefined || raw === "") return "";
-            if (DATE_FIELDS.has(field)) { const d = new Date(raw); return isNaN(d) ? String(raw) : d.toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"}); }
+            if (DATE_FIELDS.has(field)) { const d = new Date(raw); return isNaN(d) ? String(raw) : utcDate(raw).toLocaleDateString("en-US",{year:"numeric",month:"2-digit",day:"2-digit"}); }
             return raw;
           })
         );
